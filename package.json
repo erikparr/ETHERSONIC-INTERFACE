@@ -1,0 +1,25 @@
+{
+  "name": "keyboard-composer",
+  "version": "1.0.0",
+  "description": "keyboard composer tool",
+  "main": "index.html",
+  "dependencies": {
+    "osc-min": "^1.1.2",
+    "two.js": "^0.8.10"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/erikparr/piano-composer.git"
+  },
+  "author": "Erik Parr",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/erikparr/piano-composer/issues"
+  },
+  "homepage": "https://github.com/erikparr/piano-composer#readme"
+}

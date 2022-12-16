@@ -1,0 +1,43 @@
+/*
+  This is a CSS boilerplate.
+  You can use this as a starting point for your own stylesheets.
+*/
+
+/* Set the default font family and size */
+body {
+    font-family: sans-serif;
+    font-size: 16px;
+  }
+  
+  /* Set the default text and background colors */
+  body,
+  input,
+  button {
+    color: #333;
+    background-color: #333;
+  }
+  
+  /* Set the default link styles */
+  a {
+    text-decoration: none;
+    color: #00f;
+  }
+  a:hover,
+  a:active {
+    color: #f00;
+  }
+  
+  /* Set the default styles for common HTML elements */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: normal;
+    margin: 0;
+  }
+  p {
+    margin: 0 0 1em 0;
+  }
+  ul, ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  
