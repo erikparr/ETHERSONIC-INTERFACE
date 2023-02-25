@@ -1,457 +1,63 @@
+const http = require('http');
+const socketIo = require('socket.io');
+const osc = require('osc');
+const webmidi = require('webmidi');
+const express = require('express');
+const app = express();
 
+// This will create an instance of the express app, use the express.static middleware to serve the public directory as a static file directory, and create the HTTP server using the express app
+app.use(express.static('public'));
+const server = http.createServer(app);
 
-const keys = [];
-const displayNotes = [];
-const displayMidiValues = [];
-const positionsX = [];
-/// Define an array of notes, starting with C0 and ending with C8
-const notes = ['C0', 'C#0', 'D0', 'D#0', 'E0', 'F0', 'F#0', 'G0', 'G#0', 'A0', 'A#0', 'B0', 'C1', 'C#1', 'D1', 'D#1', 'E1', 'F1', 'F#1', 'G1', 'G#1', 'A1', 'A#1', 'B1', 'C2', 'C#2', 'D2', 'D#2', 'E2', 'F2', 'F#2', 'G2', 'G#2', 'A2', 'A#2', 'B2', 'C3', 'C#3', 'D3', 'D#3', 'E3', 'F3', 'F#3', 'G3', 'G#3', 'A3', 'A#3', 'B3', 'C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4', 'C5', 'C#5', 'D5', 'D#5', 'E5', 'F5', 'F#5', 'G5', 'G#5', 'A5', 'A#5', 'B5', 'C6', 'C#6', 'D6', 'D#6', 'E6', 'F6', 'F#6', 'G6', 'G#6', 'A6', 'A#6', 'B6', 'C7', 'C#7', 'D7', 'D#7', 'E7', 'F7', 'F#7', 'G7', 'G#7', 'A7', 'A#7', 'B7', 'C8',];
-// Define a function that takes a MIDI value and returns the corresponding note
-function midiToNote(midiValue) {
-    return notes[midiValue];
-}
-var two = new Two({
-    fullscreen: true,
-    autostart: true
-}).appendTo(document.body);
-
-
-// Create an OSC.js UDP server
-const udpPort = new osc.UDPPort({
-    localAddress: "0.0.0.0",
-    localPort: 57121
+// Start the server
+server.listen(8080, function () {
+  console.log('Server running on port 8080');
 });
 
-// Open the socket
-udpPort.open();
+// Create a WebSocket server
+const io = socketIo(server);
 
-// Listen for incoming OSC messages
-udpPort.on("message", function (oscMessage) {
-    // Do something with the OSC message here
-    console.log(oscMessage);
+// Listen for incoming WebSockets connections
+io.on('connection', function (socket) {
+  console.log('Client connected:', socket.id);
+
+  // Listen for incoming OSC messages
+  const udpPort = new osc.UDPPort({
+    localAddress: '0.0.0.0',
+    localPort: 57121,
+    metadata: true
+  });
+
+  udpPort.on('message', function (message) {
+    console.log('Received OSC message:', message);
+    socket.emit('osc', message);
+  });
+
+  udpPort.open();
+
+  // Enable WEBMIDI.js and trigger the onEnabled() function when ready
+  // webmidi
+  //   .enable()
+  //   .then(onEnabled)
+  //   .catch(err => alert(err));
+
+  // Function triggered when WEBMIDI.js is ready
+  // function onEnabled() {
+
+  //   // Display available MIDI input devices
+  //   if (webmidi.inputs.length < 1) {
+  //     console.log( "No device detected.");
+  //   } else {
+  //     webmidi.inputs.forEach((device, index) => {
+  //       console.log( `${index}: ${device.name}`);
+  //     });
+  //   }
+
+  // }
+
+  // Handle disconnections
+  socket.on('disconnect', function () {
+    console.log('Client disconnected:', socket.id);
+    udpPort.close();
+  });
 });
-
-
-function createKeyboard() {
-    // var rect = two.makeRectangle(two.width / 2, two.height / 2, 50, 200);
-    let numWhite = 36;
-    let whiteKeyWidth = 25;
-    whiteKeyHeight = 100;
-    // Calculate the width of each black key
-    var blackKeyWidth = 0.6 * whiteKeyWidth;
-    // Calculate the height of each black key
-    var blackKeyHeight = 0.6 * whiteKeyHeight;
-    var numKeys = 61;
-    let centerKeyboardX = (two.width / 2 - ((numWhite * whiteKeyWidth) / 2));
-    let centerKeyboardY = two.height / 2;
-    let blackKeyOffsetY = blackKeyHeight / 3;
-    //groups for render order
-    var blackKeys = two.makeGroup();
-    var whiteKeys = two.makeGroup();
-
-
-    // Create the white keys and add them to the Two.js instance
-    let count = 0;
-    var isBlackKey = false;
-    var keyX = 0;
-    var key;
-    for (var i = 0; i < numKeys; i++) {
-        let offsetX = false;
-        // get offset based on LAST key value
-        offsetX = (isBlackKey ? true : false);
-        // Determine the color of the key based on its position
-        isBlackKey = (i % 12 === 1 || i % 12 === 3 || i % 12 === 6 || i % 12 === 8 || i % 12 === 10);
-        if (!isBlackKey) {
-            let offsetXVal = (offsetX ? 0 : (whiteKeyWidth / 2))
-
-            // Calculate the x position of the key
-            keyX = (count * whiteKeyWidth) + centerKeyboardX;
-
-            // Create a new Two.js shape for the key
-            var key = two.makeRectangle(keyX, centerKeyboardY, whiteKeyWidth, whiteKeyHeight);
-
-            // Set the fill color of the key
-            // key.fill = 'white';
-            key.fill = "grey"
-
-            // Add the key to the Two.js instance
-            whiteKeys.add(key);
-            //   keys.push(key);
-            //   const textMidi = two.makeText("", two.width / 2, 50 + (two.height / 2));
-            //   displayMidiValues.push(textMidi);
-            //   var textNote = two.makeText("", two.width / 2, two.height / 2);
-            //   displayNotes.push(textNote);
-            count++;
-
-            // add text
-            const textMidi = two.makeText("", keyX, centerKeyboardY + 35);
-            var textNote = two.makeText("", keyX, centerKeyboardY + 25);
-            textMidi.fill = '#A439F5';
-            textNote.fill = '#A439F5';
-            displayMidiValues.push(textMidi);
-            displayNotes.push(textNote);
-            blackKeys.add(textMidi);
-            blackKeys.add(textNote);
-
-        } else {
-            // Calculate the x position of the key
-            keyX = (count * whiteKeyWidth) - (whiteKeyWidth / 2) + centerKeyboardX;
-            // Create a new Two.js shape for the key
-            key = two.makeRectangle(keyX, centerKeyboardY - blackKeyOffsetY, blackKeyWidth, blackKeyHeight);
-
-            // Set the fill color of the key
-            key.fill = 'black';
-
-            // Add the key to the Two.js instance
-            blackKeys.add(key);
-
-            // add text
-            const textMidi = two.makeText("", keyX, centerKeyboardY - 25);
-            var textNote = two.makeText("", keyX, centerKeyboardY - 15);
-            textMidi.fill = '#A439F5';
-            textNote.fill = '#A439F5';
-            displayMidiValues.push(textMidi);
-            displayNotes.push(textNote);
-            blackKeys.add(textMidi);
-            blackKeys.add(textNote);
-
-        }
-
-
-
-
-
-        two.add(whiteKeys);
-        two.add(blackKeys);
-        keys.push(key);
-        positionsX.push(keyX);
-
-    }
-}
-
-createKeyboard();
-createCircleFifths(250, 250);
-createStaff(200, 200);
-two.bind('update', function () {
-    // rect.rotation += 0.001;
-});
-
-// Check if the Web MIDI API is supported
-if (navigator.requestMIDIAccess) {
-    // Request access to MIDI devices
-    navigator.requestMIDIAccess()
-        .then(onMIDISuccess, onMIDIFailure);
-} else {
-    console.log("Your browser does not support the Web MIDI API.");
-}
-
-// This function is called when MIDI access is granted
-function onMIDISuccess(midi) {
-    // Get the list of MIDI inputs
-    var inputs = midi.inputs;
-
-    // Iterate over the inputs and attach an event listener to each one
-    for (var input of inputs.values()) {
-        input.onmidimessage = onMIDIMessage;
-    }
-}
-
-// This function is called when MIDI access is denied
-function onMIDIFailure(error) {
-    console.log("Error accessing MIDI devices: " + error);
-}
-
-// This function is called when a MIDI message is received
-function onMIDIMessage(message) {
-    let midi = message.data[1];
-    let attack = message.data[2];
-    let key = midi - 24;
-    // Print the MIDI values to the console
-
-    if (attack == 0) {
-        const release = setTimeout(function () { releaseNote(key); }, 1000);
-    } else {
-        console.log(message.data);
-        keys[key].fill = "#ADD8E6";
-        displayNotes[key].value = midi;
-        displayMidiValues[key].value = midiToNote(midi);
-        //release note
-
-    }
-    function releaseNote(key) {
-        displayNotes[key].value = "";
-        displayMidiValues[key].value = ""
-
-        let isBlackKey = (key % 12 === 1 || key % 12 === 3 || key % 12 === 6 || key % 12 === 8 || key % 12 === 10);
-        if (isBlackKey) {
-            keys[key].fill = "black";
-        } else {
-            keys[key].fill = "grey";
-        }
-
-
-    }
-
-    // keys.forEach((element, i) => {
-    //     isBlackKey = (i % 12 === 1 || i % 12 === 3 || i % 12 === 6 || i % 12 === 8 || i % 12 === 10);
-    //     if(isBlackKey){element.fill = "#000"};
-    // }
-    // )
-
-}
-
-function createCircleFifths(x, y) {
-    // Create a circle
-    const circle = two.makeCircle(x, y, 100);
-
-    // Set the style of the circle
-    circle.fill = '#00bcd4';
-    circle.stroke = '#ffffff';
-    circle.linewidth = 2;
-
-    // Add the circle to the scene
-    two.add(circle);
-
-    // Create an array of the names of the notes in the circle of fifths
-    const notes = [
-        'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'
-    ];
-
-    // Create a group to hold the text labels
-    const group = two.makeGroup();
-    const circles = two.makeGroup();
-
-    // Add the text labels to the group
-    for (let i = 0; i < notes.length; i++) {
-        const x = 250 + 100 * Math.cos(2 * Math.PI * i / notes.length);
-        const y = 250 + 100 * Math.sin(2 * Math.PI * i / notes.length);
-        const label = two.makeText(notes[i], x, y);
-        label.size = 24;
-        label.alignment = 'center';
-        // make cicle background
-        const circle = two.makeCircle(x, y, 20);
-        circle.fill = 'grey';
-        circle.stroke = '#ffffff';
-        circle.linewidth = 1;
-
-        circles.add(circle);
-        group.add(label);
-    }
-    two.add(circles);
-    two.add(group);
-}
-
-
-
-function createKeySignature(index, x, y, width, height) {
-    const signature = two.makeGroup();
-    const lineHeight = (height / 5) * 0.85;
-    const offsetX = width / 12;
-    const offsetY = 8;
-    let symbol = "#";
-    //  24 possible key signatures
-    switch (index) {
-        case 0:
-            // 0 = C major / A minor
-            break;
-        case 1:
-            // 1 = G major / E minor
-            var sharp1 = two.makeText(symbol, x + (width / 4), y + (lineHeight));
-            sharp1.size = 24;
-            sharp1.fill = '#000';
-            signature.add(sharp1);
-            break;
-        case 2:
-            // 2 = D major / B minor
-            var sharp1 = two.makeText(symbol, x + (width / 4), y + (lineHeight));
-            sharp1.size = 24;
-            sharp1.fill = '#000';
-            var sharp2 = two.makeText(symbol, x + (width / 4) + offsetX, y + (lineHeight * 3) - offsetY);
-            sharp2.size = 24;
-            sharp2.fill = '#000';
-            signature.add(sharp1);
-            signature.add(sharp2);
-            break;
-        case 3:
-            // 3 = A major / F# minor
-            var sharp1 = two.makeText(symbol, x + (width / 4), y + (lineHeight));
-            sharp1.size = 24;
-            sharp1.fill = '#000';
-            var sharp2 = two.makeText(symbol, x + (width / 4) + offsetX, y + (lineHeight * 3) - offsetY);
-            sharp2.size = 24;
-            sharp2.fill = '#000';
-            var sharp3 = two.makeText(symbol, x + (width / 4) + (offsetX * 3), y + (lineHeight) - offsetY);
-            sharp3.size = 24;
-            sharp3.fill = '#000';
-            signature.add(sharp1);
-            signature.add(sharp2);
-            signature.add(sharp3);
-            break;
-        case 4:
-            // 4 = E major / C# minor
-            var sharp1 = two.makeText(symbol, x + (width / 4), y + (lineHeight));
-            sharp1.size = 24;
-            sharp1.fill = '#000';
-            var sharp2 = two.makeText(symbol, x + (width / 4) + offsetX, y + (lineHeight * 3) - offsetY);
-            sharp2.size = 24;
-            sharp2.fill = '#000';
-            var sharp3 = two.makeText(symbol, x + (width / 4) + (offsetX * 3), y + (lineHeight) - offsetY);
-            sharp3.size = 24;
-            sharp3.fill = '#000';
-            var sharp4 = two.makeText(symbol, x + (width / 4) + (offsetX * 4), y + (lineHeight * 2));
-            sharp4.size = 24;
-            sharp4.fill = '#000';
-            signature.add(sharp1);
-            signature.add(sharp2);
-            signature.add(sharp3);
-            signature.add(sharp4);
-            break;
-        // 5 = B major / G# minor
-        case 5:
-            var sharp1 = two.makeText(symbol, x + (width / 4), y + (lineHeight));
-            sharp1.size = 24;
-            sharp1.fill = '#000';
-            var sharp2 = two.makeText(symbol, x + (width / 4) + offsetX, y + (lineHeight * 3) - offsetY);
-            sharp2.size = 24;
-            sharp2.fill = '#000';
-            var sharp3 = two.makeText(symbol, x + (width / 4) + (offsetX * 3), y + (lineHeight) - offsetY);
-            sharp3.size = 24;
-            sharp3.fill = '#000';
-            var sharp4 = two.makeText(symbol, x + (width / 4) + (offsetX * 4), y + (lineHeight * 2));
-            sharp4.size = 24;
-            sharp4.fill = '#000';
-            var sharp5 = two.makeText(symbol, x + (width / 4) + (37), y + (lineHeight * 4) - offsetY);
-            sharp5.size = 24;
-            sharp5.fill = '#000';
-            signature.add(sharp1);
-            signature.add(sharp2);
-            signature.add(sharp3);
-            signature.add(sharp4);
-            signature.add(sharp5);
-            break;
-        // 6 = F# major / D# minor
-        case 6:
-            var sharp1 = two.makeText(symbol, x + (width / 4), y + (lineHeight));
-            sharp1.size = 24;
-            sharp1.fill = '#000';
-            var sharp2 = two.makeText(symbol, x + (width / 4) + offsetX, y + (lineHeight * 3) - offsetY);
-            sharp2.size = 24;
-            sharp2.fill = '#000';
-            var sharp3 = two.makeText(symbol, x + (width / 4) + (offsetX * 3), y + (lineHeight) - offsetY);
-            sharp3.size = 24;
-            sharp3.fill = '#000';
-            var sharp4 = two.makeText(symbol, x + (width / 4) + (offsetX * 4), y + (lineHeight * 2));
-            sharp4.size = 24;
-            sharp4.fill = '#000';
-            var sharp5 = two.makeText(symbol, x + (width / 4) + (offsetX * 5), y + (lineHeight * 4) - offsetY);
-            sharp5.size = 24;
-            sharp5.fill = '#000';
-            var sharp6 = two.makeText(symbol, x + (width / 4) + (offsetX * 6.5), y + (lineHeight * 2) - offsetY);
-            sharp6.size = 24;
-            sharp6.fill = '#000';
-            signature.add(sharp1);
-            signature.add(sharp2);
-            signature.add(sharp3);
-            signature.add(sharp4);
-            signature.add(sharp5);
-            signature.add(sharp6);
-            break;
-        // 7 = C# major / A# minor
-        case 7:
-            var sharp1 = two.makeText(symbol, x + (width / 4), y + (lineHeight));
-            sharp1.size = 24;
-            sharp1.fill = '#000';
-            var sharp2 = two.makeText(symbol, x + (width / 4) + offsetX, y + (lineHeight * 3) - offsetY);
-            sharp2.size = 24;
-            sharp2.fill = '#000';
-            var sharp3 = two.makeText(symbol, x + (width / 4) + (offsetX * 3), y + (lineHeight) - offsetY);
-            sharp3.size = 24;
-            sharp3.fill = '#000';
-            var sharp4 = two.makeText(symbol, x + (width / 4) + (offsetX * 4), y + (lineHeight * 2));
-            sharp4.size = 24;
-            sharp4.fill = '#000';
-            var sharp5 = two.makeText(symbol, x + (width / 4) + (offsetX * 5), y + (lineHeight * 4) - offsetY);
-            sharp5.size = 24;
-            sharp5.fill = '#000';
-            var sharp6 = two.makeText(symbol, x + (width / 4) + (offsetX * 6.5), y + (lineHeight * 2) - offsetY);
-            sharp6.size = 24;
-            sharp6.fill = '#000';
-            var sharp7 = two.makeText(symbol, x + (width / 4) + (offsetX * 7.5), y + (lineHeight * 3));
-            sharp7.size = 24;
-            sharp7.fill = '#000';
-            signature.add(sharp1);
-            signature.add(sharp2);
-            signature.add(sharp3);
-            signature.add(sharp4);
-            signature.add(sharp5);
-            signature.add(sharp6);
-            signature.add(sharp7);
-            break;
-        // 8 = F major / D minor
-        // 9 = Bb major / G minor
-        // 10 = Eb major / C minor
-        // 11 = Ab major / F minor
-        // 12 = Db major / Bb minor
-        // 13 = Gb major / Eb minor
-        // 14 = Cb major / Ab minor
-        // 15 = Gb major / Db minor
-        // 16 = Cb major / Gb minor
-        // 17 = Fb major / Cb minor
-        // 18 = Bbb major / Fb minor
-        // 19 = Ebb major / Bbb minor
-        // 20 = Abb major / Ebb minor
-        // 21 = Dbb major / Abb minor
-        // 22 = Gbb major / Dbb minor
-        // 23 = Cbb major / Gbb minor
-
-    }
-    two.add(signature);
-}
-
-function createStaff(x, y) {
-    // Create a new group to hold the staff lines
-    const staff = two.makeGroup();
-    const numLines = 5;
-    const height = 90;
-    const width = 100;
-    // Use a loop to draw the lines of the staff
-    for (let i = 0; i < numLines; i++) {
-        // Calculate the y position of the current line
-        const yPos = y + (height / (numLines + 1) * (i + 1));
-
-        // Create a new line using the Two.js `line` method and set its position and length
-        const line = two.makeLine(x, yPos, width + x, yPos);
-
-        // Add the line to the Two.js scene
-        staff.add(line);
-
-    }
-    two.add(staff);
-    createKeySignature(7, x, y, width, height);
-}
-
-function parseOscValues(oscMessage) {
-    // Initialize an empty array to store the parsed values
-    let values = [];
-
-    // Loop through all the arguments in the OSC message
-    for (let i = 0; i < oscMessage.args.length; i++) {
-        // Check the type of the argument
-        switch (oscMessage.args[i].type) {
-            case "f":
-                // Parse a float value
-                values.push(parseFloat(oscMessage.args[i].value));
-                break;
-            case "i":
-                // Parse an integer value
-                values.push(parseInt(oscMessage.args[i].value, 10));
-                break;
-            default:
-                // Ignore other types
-                break;
-        }
-    }
-
-    // Return the array of parsed values
-    return values;
-}
