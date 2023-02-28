@@ -9,6 +9,7 @@ const positionsX = [];
 /// Define an array of notes, starting with C0 and ending with C8
 const notes = ['C0', 'C#0', 'D0', 'D#0', 'E0', 'F0', 'F#0', 'G0', 'G#0', 'A0', 'A#0', 'B0', 'C1', 'C#1', 'D1', 'D#1', 'E1', 'F1', 'F#1', 'G1', 'G#1', 'A1', 'A#1', 'B1', 'C2', 'C#2', 'D2', 'D#2', 'E2', 'F2', 'F#2', 'G2', 'G#2', 'A2', 'A#2', 'B2', 'C3', 'C#3', 'D3', 'D#3', 'E3', 'F3', 'F#3', 'G3', 'G#3', 'A3', 'A#3', 'B3', 'C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4', 'C5', 'C#5', 'D5', 'D#5', 'E5', 'F5', 'F#5', 'G5', 'G#5', 'A5', 'A#5', 'B5', 'C6', 'C#6', 'D6', 'D#6', 'E6', 'F6', 'F#6', 'G6', 'G#6', 'A6', 'A#6', 'B6', 'C7', 'C#7', 'D7', 'D#7', 'E7', 'F7', 'F#7', 'G7', 'G#7', 'A7', 'A#7', 'B7', 'C8',];
 
+
 //To ensure that a script is executed after the body has been loaded, you can use the window.onload event or the DOMContentLoaded event to wait for the HTML page to finish loading before executing the script.
 window.onload = function () {
 
@@ -38,7 +39,21 @@ window.onload = function () {
         console.log('Received MIDI message:', message);
     });
 
+    // Listen for Enter key press
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            // Send a message to the server
+            socket.emit('keypress', { key: 'enter' });
+        }
+    });
 
+    // Listen for Spacebar key press
+    document.addEventListener("keydown", function (event) {
+        if (event.key === " ") {
+            // Send a message to the server
+            socket.emit('keypress', { key: 'space' });
+        }
+    });
     createKeyboard();
     createCircleFifths(250, 150);
     createStaff(200, 100);
@@ -69,7 +84,6 @@ window.onload = function () {
         let count = 0;
         var isBlackKey = false;
         var keyX = 0;
-        var key;
         for (var i = 0; i < numKeys; i++) {
             let offsetX = false;
             // get offset based on LAST key value
@@ -84,18 +98,10 @@ window.onload = function () {
 
                 // Create a new Two.js shape for the key
                 var key = two.makeRectangle(keyX, centerKeyboardY, whiteKeyWidth, whiteKeyHeight);
-
-                // Set the fill color of the key
-                // key.fill = 'white';
                 key.fill = "grey"
 
                 // Add the key to the Two.js instance
                 whiteKeys.add(key);
-                //   keys.push(key);
-                //   const textMidi = two.makeText("", two.width / 2, 50 + (two.height / 2));
-                //   displayMidiValues.push(textMidi);
-                //   var textNote = two.makeText("", two.width / 2, two.height / 2);
-                //   displayNotes.push(textNote);
                 count++;
 
                 // add text
@@ -132,10 +138,6 @@ window.onload = function () {
 
             }
 
-
-
-
-
             two.add(whiteKeys);
             two.add(blackKeys);
             keys.push(key);
@@ -144,29 +146,25 @@ window.onload = function () {
         }
     }
 
-
-
-
-
     // This function is called when a MIDI message is received
     function onMIDIMessage(message) {
-        console.log(message);
-        let midi = message.args[0].value;
+        let midi = message.args[0];
         let address = message.address;
-        console.log(midi);
-        console.log(address);
-        let key = midi - 24;
+        let key = midi - 36;
         // Print the MIDI values to the console
 
         // delayed release note
         // const release = setTimeout(function () { releaseNote(key); }, 1000);
         if (address == "/keyOn") {
-            console.log(message.data);
+
+            //display midi value on keyboard
             keys[key].fill = "#ADD8E6";
             displayNotes[key].value = midi;
             displayMidiValues[key].value = midiToNote(midi);
         } else if (address == "/keyOff") {
             releaseNote(key);
+
+
         }
         //release note
         function releaseNote(key) {
@@ -181,6 +179,7 @@ window.onload = function () {
             }
 
         }
+
 
 
         // keys.forEach((element, i) => {
