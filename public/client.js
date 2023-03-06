@@ -7,7 +7,16 @@ const displayNotes = [];
 const displayMidiValues = [];
 const positionsX = [];
 /// Define an array of notes, starting with C0 and ending with C8
-const notes = ['C0', 'C#0', 'D0', 'D#0', 'E0', 'F0', 'F#0', 'G0', 'G#0', 'A0', 'A#0', 'B0', 'C1', 'C#1', 'D1', 'D#1', 'E1', 'F1', 'F#1', 'G1', 'G#1', 'A1', 'A#1', 'B1', 'C2', 'C#2', 'D2', 'D#2', 'E2', 'F2', 'F#2', 'G2', 'G#2', 'A2', 'A#2', 'B2', 'C3', 'C#3', 'D3', 'D#3', 'E3', 'F3', 'F#3', 'G3', 'G#3', 'A3', 'A#3', 'B3', 'C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4', 'C5', 'C#5', 'D5', 'D#5', 'E5', 'F5', 'F#5', 'G5', 'G#5', 'A5', 'A#5', 'B5', 'C6', 'C#6', 'D6', 'D#6', 'E6', 'F6', 'F#6', 'G6', 'G#6', 'A6', 'A#6', 'B6', 'C7', 'C#7', 'D7', 'D#7', 'E7', 'F7', 'F#7', 'G7', 'G#7', 'A7', 'A#7', 'B7', 'C8',];
+const notes = ['C0', 'C#0', 'D0', 'D#0', 'E0', 'F0', 'F#0', 'G0', 'G#0', 'A0',
+    'A#0', 'B0', 'C1', 'C#1', 'D1', 'D#1', 'E1', 'F1', 'F#1', 'G1', 'G#1', 'A1',
+    'A#1', 'B1', 'C2', 'C#2', 'D2', 'D#2', 'E2', 'F2', 'F#2', 'G2', 'G#2', 'A2',
+    'A#2', 'B2', 'C3', 'C#3', 'D3', 'D#3', 'E3', 'F3', 'F#3', 'G3', 'G#3', 'A3',
+    'A#3', 'B3', 'C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4',
+    'A#4', 'B4', 'C5', 'C#5', 'D5', 'D#5', 'E5', 'F5', 'F#5', 'G5', 'G#5', 'A5',
+    'A#5', 'B5', 'C6', 'C#6', 'D6', 'D#6', 'E6', 'F6', 'F#6', 'G6', 'G#6', 'A6',
+    'A#6', 'B6', 'C7', 'C#7', 'D7', 'D#7', 'E7', 'F7', 'F#7', 'G7', 'G#7', 'A7',
+    'A#7', 'B7', 'C8',];
+let currentKey = 'C';
 
 
 //To ensure that a script is executed after the body has been loaded, you can use the window.onload event or the DOMContentLoaded event to wait for the HTML page to finish loading before executing the script.
@@ -23,10 +32,12 @@ window.onload = function () {
 
     // Create a Two.js drawing inside the "draw-shapes" div
     var elem = document.getElementById("draw-keyboard");
+    // Create an instance of two.js
     var two = new Two({
         fullscreen: true,
         autostart: true
-    }).appendTo(elem);
+    }).appendTo(document.body);
+
 
     // Listen for incoming OSC messages
     socket.on('osc', function (message) {
@@ -57,10 +68,10 @@ window.onload = function () {
     createKeyboard();
     createCircleFifths(250, 150);
     createStaff(200, 100);
+    drawCircleWithClickListener();
     two.bind('update', function () {
         // rect.rotation += 0.001;
     });
-
 
     function createKeyboard() {
         // var rect = two.makeRectangle(two.width / 2, two.height / 2, 50, 200);
@@ -188,8 +199,6 @@ window.onload = function () {
         // }
         // )
     }
-
-
     function createCircleFifths(x, y) {
         // Create a circle
         const circle = two.makeCircle(x, y, 100);
@@ -207,27 +216,65 @@ window.onload = function () {
             'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'
         ];
 
-        // Create a group to hold the text labels
+        // Create groups to hold the text labels, circles, and invisible button
         const group = two.makeGroup();
         const circles = two.makeGroup();
+        const buttonGroup = two.makeGroup();
+        const labelGroup = two.makeGroup();
 
-        // Add the text labels to the group
+        // Add the text labels, circles, and invisible button to their respective groups
         for (let i = 0; i < notes.length; i++) {
             const px = x + 100 * Math.cos(2 * Math.PI * i / notes.length);
             const py = y + 100 * Math.sin(2 * Math.PI * i / notes.length);
-            const label = two.makeText(notes[i], px, py);
-            label.size = 24;
-            label.alignment = 'center';
-            // make cicle background
+
+            // Create a circle shape for each note
             const circle = two.makeCircle(px, py, 20);
             circle.fill = 'grey';
             circle.stroke = '#ffffff';
             circle.linewidth = 1;
 
+            // Create a text label for each note
+            const label = two.makeText(notes[i], px, py);
+            label.size = 24;
+            label.alignment = 'center';
+
+            // Add both the circle and the label to the group
             circles.add(circle);
-            group.add(label);
+            labelGroup.add(label);
+
+            // Create an invisible button for each note
+            const button = two.makeCircle(px, py, 20);
+            button.noFill();
+            button.linewidth = 0;
+
+            // Use requestAnimationFrame to add the click listener after the next repaint of the browser
+            requestAnimationFrame(function () {
+                // Add a click listener to the button
+                button._renderer.elem.addEventListener('click', function () {
+                    // Set the fill of the circle underneath the button to green
+                    circle.fill = '#00ff00';
+                    currentKey = notes[i];
+                    console.log(`You clicked the ${notes[i]} button!`);
+
+                    // Loop through all other buttons and set the fill of their corresponding circles back to grey
+                    for (let j = 0; j < notes.length; j++) {
+                        if (j !== i) {
+                            circles.children[j].fill = 'grey';
+                        }
+                    }
+                });
+            });
+
+            // Add the button to its own group
+            buttonGroup.add(button);
         }
-        two.add(circles);
+
+        // Add the circles, text labels, and button group to the main group
+        group.add(circles);
+        group.add(labelGroup);
+        group.add(buttonGroup);
+
+        // Add the main group to the scene
         two.add(group);
     }
 
