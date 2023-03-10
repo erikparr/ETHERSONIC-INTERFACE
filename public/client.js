@@ -17,8 +17,9 @@ const notes = ['C0', 'C#0', 'D0', 'D#0', 'E0', 'F0', 'F#0', 'G0', 'G#0', 'A0',
     'A#6', 'B6', 'C7', 'C#7', 'D7', 'D#7', 'E7', 'F7', 'F#7', 'G7', 'G#7', 'A7',
     'A#7', 'B7', 'C8',];
 let currentKey = 'C';
-
-
+const numKeys = 61;
+let displayKeyMidi = [];
+let displayKey = false;
 //To ensure that a script is executed after the body has been loaded, you can use the window.onload event or the DOMContentLoaded event to wait for the HTML page to finish loading before executing the script.
 window.onload = function () {
 
@@ -50,6 +51,13 @@ window.onload = function () {
         console.log('Received MIDI message:', message);
     });
 
+    // Listen for incoming MIDI messages
+    socket.on('displayKeyNotes', function (message) {
+        console.log('Received MIDI displayKeyNotes:', message);
+        displayKeyMidi = message;
+        updateKeyboardDisplay();
+    });
+
     // Listen for Enter key press
     document.addEventListener("keydown", function (event) {
         if (event.key === "Enter") {
@@ -68,7 +76,6 @@ window.onload = function () {
     createKeyboard();
     createCircleFifths(250, 150);
     createStaff(200, 100);
-    drawCircleWithClickListener();
     two.bind('update', function () {
         // rect.rotation += 0.001;
     });
@@ -82,7 +89,6 @@ window.onload = function () {
         var blackKeyWidth = 0.6 * whiteKeyWidth;
         // Calculate the height of each black key
         var blackKeyHeight = 0.6 * whiteKeyHeight;
-        var numKeys = 61;
         let centerKeyboardX = (two.width / 2 - ((numWhite * whiteKeyWidth) / 2));
         let centerKeyboardY = two.height / 2;
         let blackKeyOffsetY = blackKeyHeight / 3;
@@ -157,6 +163,36 @@ window.onload = function () {
         }
     }
 
+    function resetKeyboardColors() {
+        displayKeyMidi = [];
+        for (let key = 0; key < numKeys; key++) {
+
+            let isBlackKey = (key % 12 === 1 || key % 12 === 3 || key % 12 === 6 || key % 12 === 8 || key % 12 === 10);
+            if (isBlackKey) {
+                keys[key].fill = "black";
+            } else {
+                keys[key].fill = "grey";
+            }
+
+        }
+    }
+    function updateKeyboardDisplay() {
+        if (displayKeyMidi.length > 0 && displayKey) {
+            const midiStart = 36; // The midi value of the first key on the keyboard display
+            for (let key = 0; key < displayKeyMidi.length; key++) {
+                const keyIndex = displayKeyMidi[key] - midiStart;
+                // Change the fill color to blue
+                if (keyIndex >= 0 && keyIndex < keys.length) {
+                    let isBlackKey = (keyIndex % 12 === 1 || keyIndex % 12 === 3 || keyIndex % 12 === 6 || keyIndex % 12 === 8 || keyIndex % 12 === 10);
+                    if (isBlackKey) {
+                        keys[keyIndex].fill = '#79bbd9';
+                    } else {
+                        keys[keyIndex].fill = '#aacddd';
+                    }
+                }
+            }
+        }
+    }
     // This function is called when a MIDI message is received
     function onMIDIMessage(message) {
         let midi = message.args[0];
@@ -167,9 +203,8 @@ window.onload = function () {
         // delayed release note
         // const release = setTimeout(function () { releaseNote(key); }, 1000);
         if (address == "/keyOn") {
-
             //display midi value on keyboard
-            keys[key].fill = "#ADD8E6";
+            keys[key].fill = "#d2e467";
             displayNotes[key].value = midi;
             displayMidiValues[key].value = midiToNote(midi);
         } else if (address == "/keyOff") {
@@ -181,16 +216,23 @@ window.onload = function () {
         function releaseNote(key) {
             displayNotes[key].value = "";
             displayMidiValues[key].value = ""
-
+            let keyMidiVal = key + 36;
             let isBlackKey = (key % 12 === 1 || key % 12 === 3 || key % 12 === 6 || key % 12 === 8 || key % 12 === 10);
             if (isBlackKey) {
-                keys[key].fill = "black";
+                if (displayKeyMidi.includes(keyMidiVal)) {
+                    keys[key].fill = '#79bbd9';
+                } else {
+                    keys[key].fill = "black";
+                }
             } else {
-                keys[key].fill = "grey";
+                if (displayKeyMidi.includes(keyMidiVal)) {
+                    keys[key].fill = '#aacddd';
+                } else {
+                    keys[key].fill = "grey";
+                }
             }
 
         }
-
 
 
         // keys.forEach((element, i) => {
@@ -251,9 +293,17 @@ window.onload = function () {
             requestAnimationFrame(function () {
                 // Add a click listener to the button
                 button._renderer.elem.addEventListener('click', function () {
+                    resetKeyboardColors();
+                    if (circle.fill == '#fff') {
+                        circle.fill = 'grey';
+                        return;
+                    }
                     // Set the fill of the circle underneath the button to green
-                    circle.fill = '#00ff00';
+                    circle.fill = '#fff';
                     currentKey = notes[i];
+                    // Send a message to the server
+                    socket.emit('setKeyNotes', { key: currentKey });
+
                     console.log(`You clicked the ${notes[i]} button!`);
 
                     // Loop through all other buttons and set the fill of their corresponding circles back to grey
@@ -466,4 +516,31 @@ window.onload = function () {
         two.add(staff);
         createKeySignature(7, x, y, width, height);
     }
+
+    // Add event listeners to the buttons
+    const keyDisplayBt = document.getElementById('key-display-button');
+    keyDisplayBt.addEventListener('click', () => {
+        // Code to display the current key
+        keyDisplayBt.classList.toggle('button-pressed');
+        displayKey = !displayKey;
+        if (displayKey) {
+            updateKeyboardDisplay();
+
+        } else {
+            resetKeyboardColors();
+        }
+    });
+
+    const genNotesBt = document.getElementById('generate-notes-button');
+    genNotesBt.addEventListener('click', () => {
+        // Code to display the current key
+        genNotesBt.classList.toggle('button-pressed');
+    });
+
+    const arpeggioBt = document.getElementById('arpeggio-button');
+    arpeggioBt.addEventListener('click', () => {
+        // Code to display the current key
+        arpeggioBt.classList.toggle('button-pressed');
+    });
+
 }

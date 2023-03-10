@@ -7,16 +7,25 @@
   <meta name="description" content="A basic HTML5 boilerplate code">
   <meta name="author" content="Your Name">
   <!-- <link rel="stylesheet" href="style.css"> -->
+  <link rel="stylesheet" type="text/css" href="style.css">
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/two.js/0.7.4/two.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/web-midi-player@latest/index.js"></script>
   <script src="client.js"></script>
+  
 </head>
 
 <body>
   <div id="container" style="height:100%;width:100%;">
     <div id="draw-keyboard" style="height:100%;width:100%;"></div>
   </div>
+  <div class="button-row">
+    <button id="key-display-button">Key Display</button>
+    <button id="generate-notes-button">Generate Notes</button>
+    <button id="arpeggio-button">Arpeggio</button>
+  </div>
+  
+
 </body>
 
 </html>

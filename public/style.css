@@ -1,0 +1,39 @@
+body{
+    background-color: #211c28;
+}
+.button-row {
+    z-index: 999;
+    position: absolute;
+    top: 0;
+    right: 20%;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 50px;
+    margin-top: 20px;
+  }
+  
+  .button-row button {
+    border-radius: 20px;
+    border: 1px solid #fff;
+    background-color: rgba(192, 192, 192, 0.1);
+    color: #fff;
+    font-size: 16px;
+    font-weight: light;
+    text-transform: uppercase;
+    padding: 10px 20px; 
+    /* opacity: 0.1; */
+    transition: opacity 0.2s ease-in-out;
+  }
+  .button-pressed {
+    
+    background-color: rgba(88, 88, 222, 0.5) !important;
+  }
+  .button-row button:hover {
+    opacity: 1;
+  }
+  
+  .button-row button:active {
+    opacity: 0.7;
+  }
+  
