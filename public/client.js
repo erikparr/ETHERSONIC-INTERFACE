@@ -16,10 +16,77 @@ const notes = ['C0', 'C#0', 'D0', 'D#0', 'E0', 'F0', 'F#0', 'G0', 'G#0', 'A0',
     'A#5', 'B5', 'C6', 'C#6', 'D6', 'D#6', 'E6', 'F6', 'F#6', 'G6', 'G#6', 'A6',
     'A#6', 'B6', 'C7', 'C#7', 'D7', 'D#7', 'E7', 'F7', 'F#7', 'G7', 'G#7', 'A7',
     'A#7', 'B7', 'C8',];
+const noteLetters = [
+    'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'
+];
+// Major scale intervals
+const majorScaleIntervals = [0, 2, 4, 5, 7, 9, 11];
 let currentKey = 'C';
+let selectedNote = currentKey;
+let colorList =
+{
+    whitekey: 'grey',
+    blackkey: "#000000",
+    chord: '#bc4964',
+    active: '#d2e467',
+    keyNotes: '#79bbd9',
+    root: '#fb194e'
+};
+
+let keyTriads = [];
+let currentKeyColor = [];
 const numKeys = 61;
 let displayKeyMidi = [];
 let displayKey = false;
+let genBtPressed = false;
+let chordBtPressed = false;
+
+const chordTypes = [
+    {
+        name: 'Major',
+        symbol: '',
+        intervals: [0, 4, 7],
+    },
+    {
+        name: 'Minor',
+        symbol: 'm',
+        intervals: [0, 3, 7],
+    },
+    {
+        name: 'Dominant 7th',
+        symbol: '7',
+        intervals: [0, 4, 7, 10],
+    },
+    {
+        name: 'Minor 7th',
+        symbol: 'm7',
+        intervals: [0, 3, 7, 10],
+    },
+    {
+        name: 'Major 7th',
+        symbol: 'Δ7',
+        intervals: [0, 4, 7, 11],
+    },
+    {
+        name: 'Minor 7th (♭5)',
+        symbol: 'm7♭5',
+        intervals: [0, 3, 6, 10],
+    },
+    {
+        name: 'Diminished 7th',
+        symbol: '°7',
+        intervals: [0, 3, 6, 9],
+    },
+    {
+        name: 'Half-Diminished 7th',
+        symbol: 'ø7',
+        intervals: [0, 3, 6, 10],
+    },
+    // Add more chord types if needed
+];
+// Define an object to map note names to MIDI numbers
+const noteMap = { C: 36, "C#": 37, D: 38, "D#": 39, E: 40, F: 41, "F#": 42, G: 43, "G#": 44, A: 45, "A#": 46, B: 47 };
+
 //To ensure that a script is executed after the body has been loaded, you can use the window.onload event or the DOMContentLoaded event to wait for the HTML page to finish loading before executing the script.
 window.onload = function () {
 
@@ -73,34 +140,34 @@ window.onload = function () {
             socket.emit('keypress', { key: 'space' });
         }
     });
-    createKeyboard();
+    createKeyboard(0, 100);
     createCircleFifths(250, 150);
     createStaff(200, 100);
     two.bind('update', function () {
         // rect.rotation += 0.001;
     });
+    displayKeyNotes('C');
 
-    function createKeyboard() {
+    function createKeyboard(x, y) {
         // var rect = two.makeRectangle(two.width / 2, two.height / 2, 50, 200);
         let numWhite = 36;
-        let whiteKeyWidth = 25;
-        whiteKeyHeight = 100;
+        let whiteKeyWidth = 35;
+        whiteKeyHeight = 200;
         // Calculate the width of each black key
         var blackKeyWidth = 0.6 * whiteKeyWidth;
         // Calculate the height of each black key
         var blackKeyHeight = 0.6 * whiteKeyHeight;
-        let centerKeyboardX = (two.width / 2 - ((numWhite * whiteKeyWidth) / 2));
-        let centerKeyboardY = two.height / 2;
+        let centerKeyboardX = x + (two.width / 2 - ((numWhite * whiteKeyWidth) / 2));
+        let centerKeyboardY = y + two.height / 2;
         let blackKeyOffsetY = blackKeyHeight / 3;
         //groups for render order
         var blackKeys = two.makeGroup();
         var whiteKeys = two.makeGroup();
-
-
         // Create the white keys and add them to the Two.js instance
         let count = 0;
         var isBlackKey = false;
         var keyX = 0;
+        var key;
         for (var i = 0; i < numKeys; i++) {
             let offsetX = false;
             // get offset based on LAST key value
@@ -114,38 +181,46 @@ window.onload = function () {
                 keyX = (count * whiteKeyWidth) + centerKeyboardX;
 
                 // Create a new Two.js shape for the key
-                var key = two.makeRectangle(keyX, centerKeyboardY, whiteKeyWidth, whiteKeyHeight);
-                key.fill = "grey"
-
+                key =
+                {
+                    key: two.makeRectangle(keyX, centerKeyboardY, whiteKeyWidth, whiteKeyHeight),
+                    color: colorList.whitekey
+                };
+                // Set the fill color of the key
+                key.key.fill = key.color;
                 // Add the key to the Two.js instance
-                whiteKeys.add(key);
+                whiteKeys.add(key.key);
                 count++;
 
                 // add text
-                const textMidi = two.makeText("", keyX, centerKeyboardY + 35);
-                var textNote = two.makeText("", keyX, centerKeyboardY + 25);
+                const textMidi = two.makeText("", keyX, centerKeyboardY + 55);
+                var textNote = two.makeText("", keyX, centerKeyboardY + 35);
+                textNote.size = 22;
                 textMidi.fill = '#A439F5';
                 textNote.fill = '#A439F5';
                 displayMidiValues.push(textMidi);
                 displayNotes.push(textNote);
-                blackKeys.add(textMidi);
-                blackKeys.add(textNote);
+                whiteKeys.add(textMidi);
+                whiteKeys.add(textNote);
 
             } else {
                 // Calculate the x position of the key
                 keyX = (count * whiteKeyWidth) - (whiteKeyWidth / 2) + centerKeyboardX;
                 // Create a new Two.js shape for the key
-                key = two.makeRectangle(keyX, centerKeyboardY - blackKeyOffsetY, blackKeyWidth, blackKeyHeight);
-
+                key =
+                {
+                    key: two.makeRectangle(keyX, centerKeyboardY - blackKeyOffsetY, blackKeyWidth, blackKeyHeight),
+                    color: colorList.blackkey
+                };
                 // Set the fill color of the key
-                key.fill = 'black';
-
+                key.key.fill = key.color;
                 // Add the key to the Two.js instance
-                blackKeys.add(key);
+                blackKeys.add(key.key);
 
                 // add text
-                const textMidi = two.makeText("", keyX, centerKeyboardY - 25);
+                const textMidi = two.makeText("", keyX, centerKeyboardY - 35);
                 var textNote = two.makeText("", keyX, centerKeyboardY - 15);
+                textNote.size = 20;
                 textMidi.fill = '#A439F5';
                 textNote.fill = '#A439F5';
                 displayMidiValues.push(textMidi);
@@ -154,13 +229,13 @@ window.onload = function () {
                 blackKeys.add(textNote);
 
             }
-
-            two.add(whiteKeys);
-            two.add(blackKeys);
             keys.push(key);
             positionsX.push(keyX);
 
         }
+        two.add(whiteKeys);
+        two.add(blackKeys);
+
     }
 
     function resetKeyboardColors() {
@@ -169,9 +244,9 @@ window.onload = function () {
 
             let isBlackKey = (key % 12 === 1 || key % 12 === 3 || key % 12 === 6 || key % 12 === 8 || key % 12 === 10);
             if (isBlackKey) {
-                keys[key].fill = "black";
+                keys[key].key.fill = colorList.blackkey;
             } else {
-                keys[key].fill = "grey";
+                keys[key].key.fill = colorList.whitekey;
             }
 
         }
@@ -184,62 +259,82 @@ window.onload = function () {
                 // Change the fill color to blue
                 if (keyIndex >= 0 && keyIndex < keys.length) {
                     let isBlackKey = (keyIndex % 12 === 1 || keyIndex % 12 === 3 || keyIndex % 12 === 6 || keyIndex % 12 === 8 || keyIndex % 12 === 10);
-                    if (isBlackKey) {
-                        keys[keyIndex].fill = '#79bbd9';
-                    } else {
-                        keys[keyIndex].fill = '#aacddd';
-                    }
+                    keys[keyIndex].color = colorList.keyNotes; // remember color
+                    keys[keyIndex].key.fill = keys[keyIndex].color; // set color
                 }
             }
         }
     }
+
+    // Example data for the C major chord in the key of C major
+    const selectedKey = 0; // C major
+    const selectedChord = {
+        root: 0, // C
+        intervals: [0, 4, 7], // Major chord intervals (C, E, G)
+        colors: {
+            root: '#ff6666', // Red for the root note
+            other: '#66ccff' // Blue for other notes in the chord
+        }
+    };
+
+    function renderChords(selectedKey, selectedChord) {
+        const midiStart = 36; // The midi value of the first key on the keyboard display        
+        const notesInChord = getNotesInChord(selectedKey, selectedChord);
+
+        keys.forEach((key, i) => {
+            const note = i % 12;
+            const octave = Math.floor(i / 12);
+            const isBlackKey = [1, 3, 6, 8, 10].includes(note);
+
+            const noteInChord = notesInChord.find(nc => nc.midiNote % 12 === note);
+
+            if (noteInChord) {
+                // if (isBlackKey) 
+                key.color = colorList.chord;
+                key.key.fill = key.color;
+                if (noteInChord.isRoot) {
+                    console.log("root");
+                    key.color = colorList.root;
+                    key.key.fill = key.color;
+
+                }
+            }
+        });
+    }
+
+    function getNotesInChord(selectedKey, selectedChord) {
+        console.log(selectedChord);
+        const rootNote = selectedKey + selectedChord.intervals[0];
+        return selectedChord.intervals.map((interval, index) => {
+            const midiNote = rootNote + interval;
+            return { midiNote, isRoot: index === 0 };
+        });
+    }
+
     // This function is called when a MIDI message is received
     function onMIDIMessage(message) {
         let midi = message.args[0];
         let address = message.address;
         let key = midi - 36;
         // Print the MIDI values to the console
-
         // delayed release note
         // const release = setTimeout(function () { releaseNote(key); }, 1000);
-        if (address == "/keyOn") {
+        if (address == "/keyOn" || address == "/keyOnPlay") {
             //display midi value on keyboard
-            keys[key].fill = "#d2e467";
-            displayNotes[key].value = midi;
-            displayMidiValues[key].value = midiToNote(midi);
-        } else if (address == "/keyOff") {
+            keys[key].key.fill = colorList.active; // set it as color temporarily
+            displayNotes[key].value = midiToNote(midi);
+            displayMidiValues[key].value = midi;
+        } else if (address == "/keyOff" || address == "/keyOffPlay") {
             releaseNote(key);
-
-
         }
         //release note
         function releaseNote(key) {
             displayNotes[key].value = "";
             displayMidiValues[key].value = ""
-            let keyMidiVal = key + 36;
             let isBlackKey = (key % 12 === 1 || key % 12 === 3 || key % 12 === 6 || key % 12 === 8 || key % 12 === 10);
-            if (isBlackKey) {
-                if (displayKeyMidi.includes(keyMidiVal)) {
-                    keys[key].fill = '#79bbd9';
-                } else {
-                    keys[key].fill = "black";
-                }
-            } else {
-                if (displayKeyMidi.includes(keyMidiVal)) {
-                    keys[key].fill = '#aacddd';
-                } else {
-                    keys[key].fill = "grey";
-                }
-            }
+            keys[key].key.fill = keys[key].color;
 
         }
-
-
-        // keys.forEach((element, i) => {
-        //     isBlackKey = (i % 12 === 1 || i % 12 === 3 || i % 12 === 6 || i % 12 === 8 || i % 12 === 10);
-        //     if(isBlackKey){element.fill = "#000"};
-        // }
-        // )
     }
     function createCircleFifths(x, y) {
         // Create a circle
@@ -255,9 +350,8 @@ window.onload = function () {
 
         // Create an array of the names of the notes in the circle of fifths
         const notes = [
-            'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'
+            'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D',
         ];
-
         // Create groups to hold the text labels, circles, and invisible button
         const group = two.makeGroup();
         const circles = two.makeGroup();
@@ -330,6 +424,78 @@ window.onload = function () {
 
 
 
+
+    function displayKeyNotes(rootKey, scaleIntervals = majorScaleIntervals) {
+        const rootNoteIndex = noteLetters.indexOf(rootKey);
+        console.log("rootNoteIndex: " + rootNoteIndex);
+        const notesContainer = document.getElementById('notes-container');
+        const notesInKey = scaleIntervals.map(interval => noteLetters[(rootNoteIndex + interval) % 12]);
+
+        notesInKey.forEach((note) => {
+            const noteButton = document.createElement('button');
+            noteButton.textContent = note;
+            noteButton.classList.add('note-button');
+
+            // Add click event listener to update the selectedNote variable
+            noteButton.addEventListener('click', () => {
+                selectedNote = note;
+                console.log('Selected note:', selectedNote);
+                noteButton.classList.toggle('button-pressed');
+
+
+                if (displayKey) {
+                    updateKeyboardDisplay();
+
+                } else {
+                    resetKeyboardColors();
+                }
+
+                if (chordBtPressed) {
+                    let noteIndex = noteLetters.indexOf(selectedNote); // renderChords expects a specific note order index
+                    renderChords(noteIndex, selectedChord);
+                }
+
+            });
+
+            notesContainer.appendChild(noteButton);
+        });
+    }
+
+    function setSelectedNote(note) {
+        // Set the selected note variable and perform other actions
+        selectedNote = note;
+        console.log(`Selected note: ${selectedNote}`);
+    }
+
+
+    // Define a function to generate the basic triads of a given major scale key
+    function displayTriads(key, triadType = "major") {
+        const triads = getTriads(key);
+        const notes = triads.major;
+        console.log("notes: " + notes)
+        const startIndex = noteMap[key] - 36;
+        for (let i = 0; i < 61; i++) {
+            let isBlackKey = (i % 12 === 1 || i % 12 === 3 || i % 12 === 6 || i % 12 === 8 || i % 12 === 10);
+            if (notes.includes(i)) {
+                keys[i].key.fill = colorList.chord;
+            }
+        }
+    }
+
+    function getTriads(key) {
+        const root = noteMap[key];
+        const major = [root, root + 4, root + 7];
+        const minor = [root, root + 3, root + 7];
+        const augmented = [root, root + 4, root + 8];
+        const diminished = [root, root + 3, root + 6];
+        console.log("major: " + major);
+        return {
+            major,
+            minor,
+            augmented,
+            diminished
+        };
+    }
     function createKeySignature(index, x, y, width, height) {
         const signature = two.makeGroup();
         const lineHeight = (height / 5) * 0.85;
@@ -535,12 +701,38 @@ window.onload = function () {
     genNotesBt.addEventListener('click', () => {
         // Code to display the current key
         genNotesBt.classList.toggle('button-pressed');
+        genBtPressed = !genBtPressed;
+        socket.emit('generateRandom', { key: genBtPressed });
+
     });
 
-    const arpeggioBt = document.getElementById('arpeggio-button');
-    arpeggioBt.addEventListener('click', () => {
+    const triadChordsBt = document.getElementById('triads-button');
+    triadChordsBt.addEventListener('click', () => {
+        //reset previous settings
+        if (displayKey) {
+            updateKeyboardDisplay();
+
+        } else {
+            resetKeyboardColors();
+        }
         // Code to display the current key
-        arpeggioBt.classList.toggle('button-pressed');
+        triadChordsBt.classList.toggle('button-pressed');
+        chordBtPressed = !chordBtPressed;
+        //        displayTriads(currentKey);
+        // renderChords(currentKey,chordTypes['Major'] );
+        if (chordBtPressed) {
+            let noteIndex = noteLetters.indexOf(selectedNote); // renderChords expects a specific note order index
+            renderChords(noteIndex, selectedChord);
+        }
+    });
+
+
+    // Sort the chordTypes array so that popular jazz chords appear first
+    chordTypes.sort((a, b) => {
+        const jazzChords = ['Dominant 7th', 'Minor 7th', 'Major 7th', 'Minor 7th (♭5)', 'Diminished 7th', 'Half-Diminished 7th'];
+        const aIsJazzChord = jazzChords.includes(a.name);
+        const bIsJazzChord = jazzChords.includes(b.name);
+        return bIsJazzChord - aIsJazzChord;
     });
 
 }

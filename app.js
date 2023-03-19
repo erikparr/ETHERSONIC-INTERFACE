@@ -106,6 +106,12 @@ io.on('connection', function (socket) {
 
   });
 
+
+  // Listen for generateRandom messages
+  socket.on('generateRandom', (data) => {
+    console.log('generate notes: ' + data.key);
+    generateNotes(data.key);
+  });
   // Listen for keypress messages
   socket.on('keypress', (data) => {
     if (data.key == "space") {
@@ -126,6 +132,61 @@ io.on('connection', function (socket) {
       isRecording = !isRecording;
     }
   });
+  let isGeneratingNotes = false;
+  let noteDuration = 500; // milliseconds
+  let playingNotes = [];
+  let loopId;
+
+  function generateNotes(isGenerating) {
+    console.log("isGenerating: " + isGenerating);
+    if (!isGenerating && loopId) {
+      clearInterval(loopId);
+      loopId = null;
+      isGeneratingNotes = false;
+      // Turn off any currently playing notes
+      playingNotes.forEach(({ note }) => {
+        let event = { address: "/keyOffPlay", args: [note] };
+        udpPort.send(event);
+        socket.emit('osc', event);
+      });
+      playingNotes = [];
+      return;
+    }
+
+    if (isGeneratingNotes) {
+      return;
+    }
+
+    isGeneratingNotes = true;
+    let bpm = 220;
+    let beatTime = 60000 / bpm; // calculate the time between beats in milliseconds
+
+    function playNote() {
+      let randomNote = midiKeyNotes[Math.floor(Math.random() * midiKeyNotes.length)];
+      let event = { address: "/keyOnPlay", args: [randomNote] };
+      udpPort.send(event); // send to SC
+      socket.emit('osc', event); // display on keyboard
+
+      playingNotes.push({ note: randomNote, startTime: Date.now() });
+
+      // Schedule a note off message after the duration
+      setTimeout(() => {
+        let event = { address: "/keyOffPlay", args: [randomNote] };
+        udpPort.send(event);
+        socket.emit('osc', event); // display on keyboard
+        // Remove the note from the playingNotes array
+        playingNotes = playingNotes.filter(n => n.note !== randomNote);
+      }, noteDuration);
+    }
+
+    function loop() {
+      playNote();
+      loopId = setTimeout(loop, beatTime);
+    }
+
+    loop();
+  }
+
 
   // This function is called when a MIDI message is received
   function onMIDIMessage(message) {
@@ -146,7 +207,7 @@ io.on('connection', function (socket) {
     const notes = tonal.Scale.get(rootNote + " major").notes;
 
     // Create an empty array to store the MIDI note numbers
-    const midiNotes = [];
+    midiKeyNotes = [];
 
     // Loop through each octave from MIDI notes 0 to 8 (inclusive)
     for (let octave = 0; octave <= 8; octave++) {
@@ -157,12 +218,12 @@ io.on('connection', function (socket) {
 
         // If the MIDI note number is within the range of MIDI notes 36 to 96, push it to the array
         if (midiNote >= 36 && midiNote <= 96) {
-          midiNotes.push(midiNote);
+          midiKeyNotes.push(midiNote);
         }
       });
     }
 
-    return midiNotes;
+    return midiKeyNotes;
   }
 
 
