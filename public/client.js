@@ -23,6 +23,7 @@ const noteLetters = [
 const majorScaleIntervals = [0, 2, 4, 5, 7, 9, 11];
 let currentKey = 'C';
 let selectedNote = currentKey;
+let selectedChordType;
 let colorList =
 {
     whitekey: 'grey',
@@ -42,48 +43,29 @@ let genBtPressed = false;
 let chordBtPressed = false;
 
 const chordTypes = [
-    {
-        name: 'Major',
-        symbol: '',
-        intervals: [0, 4, 7],
-    },
-    {
-        name: 'Minor',
-        symbol: 'm',
-        intervals: [0, 3, 7],
-    },
-    {
-        name: 'Dominant 7th',
-        symbol: '7',
-        intervals: [0, 4, 7, 10],
-    },
-    {
-        name: 'Minor 7th',
-        symbol: 'm7',
-        intervals: [0, 3, 7, 10],
-    },
-    {
-        name: 'Major 7th',
-        symbol: 'Δ7',
-        intervals: [0, 4, 7, 11],
-    },
-    {
-        name: 'Minor 7th (♭5)',
-        symbol: 'm7♭5',
-        intervals: [0, 3, 6, 10],
-    },
-    {
-        name: 'Diminished 7th',
-        symbol: '°7',
-        intervals: [0, 3, 6, 9],
-    },
-    {
-        name: 'Half-Diminished 7th',
-        symbol: 'ø7',
-        intervals: [0, 3, 6, 10],
-    },
-    // Add more chord types if needed
+    { name: 'Major', intervals: [0, 4, 7] },
+    { name: 'Minor', intervals: [0, 3, 7] },
+    { name: 'Major 7th', intervals: [0, 4, 7, 11] },
+    { name: 'Minor 7th', intervals: [0, 3, 7, 10] },
+    { name: 'Dominant 7th', intervals: [0, 4, 7, 10] },
+    { name: 'Diminished', intervals: [0, 3, 6] },
+    { name: 'Diminished 7th', intervals: [0, 3, 6, 9] },
+    { name: 'Half Diminished 7th', intervals: [0, 3, 6, 10] },
+    { name: 'Augmented', intervals: [0, 4, 8] },
+    { name: 'Augmented 7th', intervals: [0, 4, 8, 10] },
+    { name: 'Suspended 2nd', intervals: [0, 2, 7] },
+    { name: 'Suspended 4th', intervals: [0, 5, 7] },
+    { name: '9th', intervals: [0, 4, 7, 10, 14] },
+    { name: 'Major 9th', intervals: [0, 4, 7, 11, 14] },
+    { name: 'Minor 9th', intervals: [0, 3, 7, 10, 14] },
+    { name: '11th', intervals: [0, 4, 7, 10, 14, 17] },
+    { name: 'Major 11th', intervals: [0, 4, 7, 11, 14, 17] },
+    { name: 'Minor 11th', intervals: [0, 3, 7, 10, 14, 17] },
+    { name: '13th', intervals: [0, 4, 7, 10, 14, 17, 21] },
+    { name: 'Major 13th', intervals: [0, 4, 7, 11, 14, 17, 21] },
+    { name: 'Minor 13th', intervals: [0, 3, 7, 10, 14, 17, 21] },
 ];
+
 // Define an object to map note names to MIDI numbers
 const noteMap = { C: 36, "C#": 37, D: 38, "D#": 39, E: 40, F: 41, "F#": 42, G: 43, "G#": 44, A: 45, "A#": 46, B: 47 };
 
@@ -138,6 +120,11 @@ window.onload = function () {
         if (event.key === " ") {
             // Send a message to the server
             socket.emit('keypress', { key: 'space' });
+        } else if (event.key === 'ArrowDown') { // down arrow
+            console.log("note capture");
+            socket.emit('noteCapture', {options: 0});
+        } else if (event.key === 'ArrowUp') { // up
+            socket.emit('clearNoteCapture', {options: 0});
         }
     });
     createKeyboard(0, 100);
@@ -147,6 +134,7 @@ window.onload = function () {
         // rect.rotation += 0.001;
     });
     displayKeyNotes('C');
+    createChordButtons();
 
     function createKeyboard(x, y) {
         // var rect = two.makeRectangle(two.width / 2, two.height / 2, 50, 200);
@@ -267,28 +255,23 @@ window.onload = function () {
     }
 
     // Example data for the C major chord in the key of C major
-    const selectedKey = 0; // C major
-    const selectedChord = {
-        root: 0, // C
-        intervals: [0, 4, 7], // Major chord intervals (C, E, G)
-        colors: {
-            root: '#ff6666', // Red for the root note
-            other: '#66ccff' // Blue for other notes in the chord
-        }
-    };
 
     function renderChords(selectedKey, selectedChord) {
+        console.log("selectedChord: " + selectedChord)
         const midiStart = 36; // The midi value of the first key on the keyboard display        
         const notesInChord = getNotesInChord(selectedKey, selectedChord);
+        // Send a message to the server
 
+        updateKeyboardDisplay();
+        let notesList = [];
         keys.forEach((key, i) => {
             const note = i % 12;
-            const octave = Math.floor(i / 12);
             const isBlackKey = [1, 3, 6, 8, 10].includes(note);
 
             const noteInChord = notesInChord.find(nc => nc.midiNote % 12 === note);
 
             if (noteInChord) {
+                notesList.push(i + 36);
                 // if (isBlackKey) 
                 key.color = colorList.chord;
                 key.key.fill = key.color;
@@ -299,11 +282,15 @@ window.onload = function () {
 
                 }
             }
+
         });
+        socket.emit('update-gen-notes', { notes: notesList }); // update to generative notes
+
+        updateKeyboardDisplay();
     }
 
     function getNotesInChord(selectedKey, selectedChord) {
-        console.log(selectedChord);
+        console.log("selectedChord: " + selectedChord.name);
         const rootNote = selectedKey + selectedChord.intervals[0];
         return selectedChord.intervals.map((interval, index) => {
             const midiNote = rootNote + interval;
@@ -423,6 +410,38 @@ window.onload = function () {
     }
 
 
+    function createChordButtons() {
+        const chordContainer = document.getElementById('chord-container');
+
+        chordTypes.forEach((chordType) => {
+            const button = document.createElement('button');
+            button.classList.add('chord-button');
+            button.textContent = chordType.name;
+            //click event listener
+            button.addEventListener('click', () => {
+                //remove any selected chord buttons
+                const children = chordContainer.children;
+                for (let i = 0; i < children.length; i++) {
+                    children[i].classList.remove('button-pressed');
+                }
+                selectedChordType = chordType;
+                console.log('Selected chord type:', selectedChordType.name);
+                button.classList.toggle('button-pressed');
+                if (chordBtPressed) {
+                    resetKeyboardColors();
+                    updateKeyboardDisplay();
+                    let noteIndex = noteLetters.indexOf(selectedNote); // renderChords expects a specific note order index
+                    console.log("selectedChordType.name: " + selectedChordType.name);
+                    renderChords(noteIndex, selectedChordType);
+                }
+
+            });
+
+            chordContainer.appendChild(button);
+        });
+    }
+
+
 
 
     function displayKeyNotes(rootKey, scaleIntervals = majorScaleIntervals) {
@@ -438,6 +457,11 @@ window.onload = function () {
 
             // Add click event listener to update the selectedNote variable
             noteButton.addEventListener('click', () => {
+                const children = notesContainer.children;
+                for (let i = 0; i < children.length; i++) {
+                    children[i].classList.remove('button-pressed');
+                }
+
                 selectedNote = note;
                 console.log('Selected note:', selectedNote);
                 noteButton.classList.toggle('button-pressed');
@@ -452,7 +476,8 @@ window.onload = function () {
 
                 if (chordBtPressed) {
                     let noteIndex = noteLetters.indexOf(selectedNote); // renderChords expects a specific note order index
-                    renderChords(noteIndex, selectedChord);
+                    console.log("selectedChordType.name: " + selectedChordType.name);
+                    renderChords(noteIndex, selectedChordType);
                 }
 
             });
@@ -722,17 +747,8 @@ window.onload = function () {
         // renderChords(currentKey,chordTypes['Major'] );
         if (chordBtPressed) {
             let noteIndex = noteLetters.indexOf(selectedNote); // renderChords expects a specific note order index
-            renderChords(noteIndex, selectedChord);
+            renderChords(noteIndex, selectedChordType);
         }
-    });
-
-
-    // Sort the chordTypes array so that popular jazz chords appear first
-    chordTypes.sort((a, b) => {
-        const jazzChords = ['Dominant 7th', 'Minor 7th', 'Major 7th', 'Minor 7th (♭5)', 'Diminished 7th', 'Half-Diminished 7th'];
-        const aIsJazzChord = jazzChords.includes(a.name);
-        const bIsJazzChord = jazzChords.includes(b.name);
-        return bIsJazzChord - aIsJazzChord;
     });
 
 }

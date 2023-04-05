@@ -19,10 +19,24 @@ body {
   border: 1px solid #fff;
   background-color: rgba(192, 192, 192, 0.1);
   color: #fff;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: light;
   text-transform: uppercase;
-  padding: 10px 20px;
+  padding: 5px 10px;
+  /* opacity: 0.1; */
+  transition: opacity 0.2s ease-in-out;
+
+}
+
+.chord-button {
+  border-radius: 20px;
+  border: 1px solid #fff;
+  background-color: rgba(192, 192, 192, 0.1);
+  color: #fff;
+  font-size: 12px;
+  font-weight: light;
+  text-transform: uppercase;
+  padding: 5px 10px;
   /* opacity: 0.1; */
   transition: opacity 0.2s ease-in-out;
 
@@ -53,10 +67,21 @@ body {
 #notes-container {
   z-index: 999;
   height: 200px;
-  width: 100%;
+  width: 400px;
   position: absolute;
   top: 25px;
-  left: 30%;
+  left: 25%;
+  font-size:11px;
+}
+
+#chord-container {
+  z-index: 999;
+  height: 200px;
+  width: 400px;
+  position: absolute;
+  top: 60px;
+  left: 25%;
+  font-size:11px;
 }
 
 .button-row button:active {

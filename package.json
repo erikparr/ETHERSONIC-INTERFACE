@@ -11,6 +11,7 @@
     "osc": "^2.4.3",
     "socket.io": "^4.6.1",
     "tonal": "^4.14.0",
+    "tonal-distance": "^2.2.2",
     "two.js": "^0.8.10",
     "web-midi-player": "^1.4.1",
     "webmidi": "^3.1.4"

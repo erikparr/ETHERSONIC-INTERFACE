@@ -4,13 +4,18 @@ const osc = require('osc');
 const express = require('express');
 const app = express();
 const tonal = require("tonal");
+const { Note, Scale, Transpose } = require("tonal");
+const Distance = require("tonal-distance");
 
 // Define an array for storing OSC message events with timestamps
 const numPianoKeys = 61;
 let events = [];
 let isPlaying = false;
 let isRecording = false;
-let midiKeyNotes = [];
+let midiGenNotes = [];
+let isCapturingNotes = false;
+let captureNotes = []; // manually add midi notes to a list
+let currentKey = 'C';
 // This will create an instance of the express app, use the express.static middleware to serve the public directory as a static file directory, and create the HTTP server using the express app
 app.use(express.static('public'));
 const server = http.createServer(app);
@@ -27,7 +32,7 @@ const io = socketIo(server);
 io.on('connection', function (socket) {
   console.log('Client connected:', socket.id);
 
-  //  midiKeyNotes = generateMidiNotesForKey("C");
+  //  midiGenNotes = generateMidiNotesForKey("C");
   // Listen for incoming OSC messages
   const udpPort = new osc.UDPPort({
     localAddress: '0.0.0.0',
@@ -39,7 +44,8 @@ io.on('connection', function (socket) {
   udpPort.on('message', function (message) {
     console.log('Received OSC message:', message);
     socket.emit('osc', message);
-    onMIDIMessage(message);
+    onOSCMessage(message);
+
   });
 
   udpPort.open();
@@ -48,6 +54,32 @@ io.on('connection', function (socket) {
   socket.on('disconnect', function () {
     console.log('Client disconnected:', socket.id);
     udpPort.close();
+  });
+
+  // Handle update midiGenNotes
+  socket.on('update-gen-notes', function (message) {
+    midiGenNotes = message.notes;
+    console.log('new generative note list:', midiGenNotes);
+
+  });
+
+  // Handle update addMidiNotesToList
+  socket.on('noteCapture', function (message) {
+    isCapturingNotes = !isCapturingNotes;
+    console.log('capturing notes: ' + isCapturingNotes);
+    if (isCapturingNotes === false) {
+      console.log("send capture to osc: " + captureNotes);
+      // when toggled off send notes to supercollider
+      let event = { address: "/noteCapture", args: captureNotes };
+      console.log(event.args);
+      udpPort.send(event);
+    }
+  });
+
+  socket.on('clearNoteCapture', function (message) {
+    isCapturingNotes = false;
+    captureNotes = [];
+    console.log('cleared capture notes: ' + captureNotes.length);
   });
 
 
@@ -101,8 +133,9 @@ io.on('connection', function (socket) {
   }
   // Listen for keypress messages
   socket.on('setKeyNotes', (data) => {
+    currentKey = data.key;
     // Emit the list of MIDI notes to the client
-    socket.emit('displayKeyNotes', generateMidiNotesForKey(data.key));
+    socket.emit('displayKeyNotes', generateMidiNotesForKey(currentKey));
 
   });
 
@@ -139,6 +172,9 @@ io.on('connection', function (socket) {
 
   function generateNotes(isGenerating) {
     console.log("isGenerating: " + isGenerating);
+    let randomNote = midiGenNotes[Math.floor(Math.random() * midiGenNotes.length)];
+    console.log("randomNote: " + randomNote);
+
     if (!isGenerating && loopId) {
       clearInterval(loopId);
       loopId = null;
@@ -158,11 +194,12 @@ io.on('connection', function (socket) {
     }
 
     isGeneratingNotes = true;
-    let bpm = 220;
+    let bpm = 80;
     let beatTime = 60000 / bpm; // calculate the time between beats in milliseconds
 
     function playNote() {
-      let randomNote = midiKeyNotes[Math.floor(Math.random() * midiKeyNotes.length)];
+      let randomNote = midiGenNotes[Math.floor(Math.random() * midiGenNotes.length)];
+      console.log("randomNote: " + randomNote);
       let event = { address: "/keyOnPlay", args: [randomNote] };
       udpPort.send(event); // send to SC
       socket.emit('osc', event); // display on keyboard
@@ -189,8 +226,7 @@ io.on('connection', function (socket) {
 
 
   // This function is called when a MIDI message is received
-  function onMIDIMessage(message) {
-    console.log("...onMIDIMessage");
+  function onOSCMessage(message) {
     let midi = message.args[0].value;
     let address = message.address;
     let key = midi - 24;
@@ -198,8 +234,14 @@ io.on('connection', function (socket) {
     if ((address == "/keyOn" || address == "/keyOff") && isRecording) {
       // Push the message object with a timestamp to the events array
       events.push({ address: message.address, args: message.args, timestamp: Date.now() });
+    } else if (address == '/keyOn' && isCapturingNotes) {
+      captureNotes.push(message.args[0]);
+    } else if (address == '/transpose') {
+      let transposed  = transposeNotes(captureNotes, -2, currentKey);
+      let event = { address: "/noteCapture", args: transposed };
+      udpPort.send(event);
+      
     }
-    // Play back events using web-midi-player with loop option and onMidiEvent callback
   }
 
   function generateMidiNotesForKey(rootNote) {
@@ -207,8 +249,7 @@ io.on('connection', function (socket) {
     const notes = tonal.Scale.get(rootNote + " major").notes;
 
     // Create an empty array to store the MIDI note numbers
-    midiKeyNotes = [];
-
+    midiGenNotes = [];
     // Loop through each octave from MIDI notes 0 to 8 (inclusive)
     for (let octave = 0; octave <= 8; octave++) {
       // Loop through each note in the scale
@@ -218,13 +259,74 @@ io.on('connection', function (socket) {
 
         // If the MIDI note number is within the range of MIDI notes 36 to 96, push it to the array
         if (midiNote >= 36 && midiNote <= 96) {
-          midiKeyNotes.push(midiNote);
+          midiGenNotes.push(midiNote);
         }
       });
     }
 
-    return midiKeyNotes;
+    return midiGenNotes;
   }
+
+  // Custom helper function to find the closest note in the scale
+
+  function findClosestNote(scale, noteName) {
+    let minDistance = Infinity;
+    let closestNoteIndex = -1;
+
+    const noteChroma = tonal.Note.chroma(noteName);
+
+    scale.forEach((scaleNote, index) => {
+      const scaleNoteChroma = tonal.Note.chroma(scaleNote);
+      const distance = Math.abs(noteChroma - scaleNoteChroma);
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestNoteIndex = index;
+      }
+    });
+
+    return closestNoteIndex;
+  }
+
+
+function midiKeysInKey(key, scaleType = "major", keyboardSize = 61) {
+  const lowestMidi = keyboardSize === 61 ? 36 : 21; // MIDI note for C2 (36) and C0 (21)
+  const highestMidi = keyboardSize === 61 ? 96 : 108; // MIDI note for C7 (96) and C9 (108)
+  const scale = tonal.Scale.get(`${key} ${scaleType}`).notes;
+  const midiKeys = [];
+
+  for (let i = lowestMidi; i <= highestMidi; i++) {
+    const note = tonal.Note.fromMidi(i);
+    const degree = tonal.Scale.degrees(scale, note);
+    if (degree) {
+      midiKeys.push(i);
+    }
+  }
+
+  return midiKeys;
+}
+
+function transposeNotes(notes, interval, key, scaleType = "major") {
+  const keyboardSize = 61;
+  const result = []; // Initialize the result array
+  const midiKeys = midiKeysInKey(key, scaleType, keyboardSize);
+
+  // Iterate through the input notes
+  for (const note of notes) {
+    const noteIndex = midiKeys.indexOf(note);
+
+    if (noteIndex !== -1) {
+      const transposedIndex = noteIndex + interval;
+      if (transposedIndex >= 0 && transposedIndex < midiKeys.length) {
+        result.push(midiKeys[transposedIndex]);
+      }
+    }
+  }
+
+  // Return the result array with transposed MIDI values
+  return result;
+}
+
 
 
 });
