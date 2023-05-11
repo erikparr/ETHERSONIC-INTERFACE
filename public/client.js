@@ -1,11 +1,11 @@
-
-
 var width = 800;
 var height = 600;
 const keys = [];
 const displayNotes = [];
 const displayMidiValues = [];
 const positionsX = [];
+const numChannels = 10;
+let notesList
 /// Define an array of notes, starting with C0 and ending with C8
 const notes = ['C0', 'C#0', 'D0', 'D#0', 'E0', 'F0', 'F#0', 'G0', 'G#0', 'A0',
     'A#0', 'B0', 'C1', 'C#1', 'D1', 'D#1', 'E1', 'F1', 'F#1', 'G1', 'G#1', 'A1',
@@ -33,14 +33,14 @@ let colorList =
     keyNotes: '#79bbd9',
     root: '#fb194e'
 };
-
+let numChan = 0;
 let keyTriads = [];
-let currentKeyColor = [];
 const numKeys = 61;
 let displayKeyMidi = [];
 let displayKey = false;
 let genBtPressed = false;
 let chordBtPressed = false;
+let glissandoMode = false;
 
 const chordTypes = [
     { name: 'Major', intervals: [0, 4, 7] },
@@ -72,6 +72,53 @@ const noteMap = { C: 36, "C#": 37, D: 38, "D#": 39, E: 40, F: 41, "F#": 42, G: 4
 //To ensure that a script is executed after the body has been loaded, you can use the window.onload event or the DOMContentLoaded event to wait for the HTML page to finish loading before executing the script.
 window.onload = function () {
 
+
+
+
+
+    function playAndBendNote(noteInput = -1, noteRatio = 1.0) {
+        console.log("noteInput: " + noteInput)
+        let noteChannel = numChan;
+        let bendDuration = 30000;
+        let endBend = remap(noteRatio, -1.0, 1.0, 0, 16383);
+        let endAmp = 1;
+        let randomNote = displayKeyMidi[Math.floor(Math.random() * displayKeyMidi.length)]
+        let note = 0;
+        let easing = TWEEN.Easing.Quadratic.In;
+        if (noteInput != -1) {
+            note = noteInput;
+        } else {
+            note = randomNote
+        }
+        // if (noteRatio < 0.0) { easing = TWEEN.Easing.Elastic.Out }
+
+        console.log("bend note: " + note + "endBend: " + endBend);
+        socket.emit('noteOn', { note: note, channel: noteChannel });
+        setTimeout(() => {
+
+            const bend = { x: 8192, y: 0 } // x = bend amt, y = amplitude
+            const tween = new TWEEN.Tween(bend) // Create a new tween that modifies 'coords'.
+                .to({ x: endBend, y: endAmp }, bendDuration) // Move to (300, 200) in 1 second.
+                .easing(easing) // Use an easing function to make the animation smooth.
+                .onUpdate(() => {
+                    socket.emit('noteBend', { amount: bend.x, channel: noteChannel });
+                    console.log(bend.x / 8192)
+                }).onComplete(() => {
+                    socket.emit('noteOff', { note: note, channel: noteChannel });
+
+                })
+                .start() // Start the tween immediately.
+            // Setup the animation loop.
+            function animate(time) {
+                tween.update(time)
+                requestAnimationFrame(animate)
+            }
+            requestAnimationFrame(animate)
+
+        }, 100)
+        numChan = (numChan + 1) % numChannels;
+    }
+
     // Define a function that takes a MIDI value and returns the corresponding note
     function midiToNote(midiValue) {
         return notes[midiValue];
@@ -91,8 +138,8 @@ window.onload = function () {
 
     // Listen for incoming OSC messages
     socket.on('osc', function (message) {
-        console.log('Received OSC message:', message);
-        onMIDIMessage(message);
+        // console.log('Received OSC message:', message);
+        onWebsocketMessage(message);
     });
 
     // Listen for incoming MIDI messages
@@ -106,6 +153,13 @@ window.onload = function () {
         displayKeyMidi = message;
         updateKeyboardDisplay();
     });
+
+    //listen for noteRatio messages
+    socket.on('noteRatio', function (message) {
+        playAndBendNote(parseInt(message.midiStart), parseFloat(message.ratio))
+        console.log('midiStart: ', message.midiStart, 'midiEnd: ', message.midiEnd, 'ratio: ', message.ratio);
+    });
+
 
     // Listen for Enter key press
     document.addEventListener("keydown", function (event) {
@@ -122,9 +176,13 @@ window.onload = function () {
             socket.emit('keypress', { key: 'space' });
         } else if (event.key === 'ArrowDown') { // down arrow
             console.log("note capture");
-            socket.emit('noteCapture', {options: 0});
+            socket.emit('noteCapture', { options: 0 });
         } else if (event.key === 'ArrowUp') { // up
-            socket.emit('clearNoteCapture', {options: 0});
+            socket.emit('clearNoteCapture', { options: 0 });
+        } else if (event.key === 'ArrowLeft') { // left
+            playAndBendNote();
+        } else if (event.key === 'ArrowRight') {
+            createLooper(false, 5);
         }
     });
     createKeyboard(0, 100);
@@ -135,6 +193,50 @@ window.onload = function () {
     });
     displayKeyNotes('C');
     createChordButtons();
+
+
+    function createLooper(loop, duration) {
+
+        const mainCircle = two.makeCircle(two.width - 400, 240, 100);
+        mainCircle.stroke = "darkblue";
+        mainCircle.linewidth = 3;
+        mainCircle.noFill();
+
+        const pointer = two.makeCircle(mainCircle.translation.x, mainCircle.translation.y - mainCircle.radius, 10);
+        pointer.fill = "lightyellow";
+        pointer.stroke = "darkblue";
+        pointer.linewidth = 2;
+
+        const durationInSeconds = Tone.Time(duration).toSeconds();
+        let elapsedTime = 0;
+
+        two.bind("update", () => {
+            elapsedTime += two.timeDelta / 1000;
+            const progress = elapsedTime / durationInSeconds;
+            const angle = -0.5 * Math.PI + progress * 2 * Math.PI;
+            pointer.translation.set(
+                mainCircle.translation.x + mainCircle.radius * Math.cos(-angle),
+                mainCircle.translation.y - mainCircle.radius * Math.sin(-angle)
+            );
+        });
+
+        const loopEvent = new Tone.Loop((time) => {
+            console.log("Loop start");
+
+            if (time >= duration) {
+                console.log("Specified time reached");
+            }
+
+            if (!loop) {
+                loopEvent.stop();
+                console.log("Loop finished");
+            }
+        }, duration);
+
+        loopEvent.start(0);
+        Tone.Transport.start();
+    }
+
 
     function createKeyboard(x, y) {
         // var rect = two.makeRectangle(two.width / 2, two.height / 2, 50, 200);
@@ -226,6 +328,8 @@ window.onload = function () {
 
     }
 
+
+
     function resetKeyboardColors() {
         displayKeyMidi = [];
         for (let key = 0; key < numKeys; key++) {
@@ -263,7 +367,7 @@ window.onload = function () {
         // Send a message to the server
 
         updateKeyboardDisplay();
-        let notesList = [];
+        notesList = [];
         keys.forEach((key, i) => {
             const note = i % 12;
             const isBlackKey = [1, 3, 6, 8, 10].includes(note);
@@ -298,9 +402,9 @@ window.onload = function () {
         });
     }
 
-    // This function is called when a MIDI message is received
-    function onMIDIMessage(message) {
-        let midi = message.args[0];
+    // This function is called when a websockets message is received
+    function onWebsocketMessage(message) {
+        let midi = parseInt(message.args[1]);
         let address = message.address;
         let key = midi - 36;
         // Print the MIDI values to the console
@@ -311,8 +415,13 @@ window.onload = function () {
             keys[key].key.fill = colorList.active; // set it as color temporarily
             displayNotes[key].value = midiToNote(midi);
             displayMidiValues[key].value = midi;
+
         } else if (address == "/keyOff" || address == "/keyOffPlay") {
             releaseNote(key);
+        } else if (address == '/glissOn') {
+            console.log("get note ratio...")
+            //get note ratio for glissando mode
+            socket.emit('getNoteRatio', { midiStart: midi, midiEnd: 60 });
         }
         //release note
         function releaseNote(key) {
@@ -323,6 +432,9 @@ window.onload = function () {
 
         }
     }
+
+
+
     function createCircleFifths(x, y) {
         // Create a circle
         const circle = two.makeCircle(x, y, 100);
@@ -750,5 +862,23 @@ window.onload = function () {
             renderChords(noteIndex, selectedChordType);
         }
     });
+
+
+    const glissandoBt = document.getElementById('glissando-button');
+    glissandoBt.addEventListener('click', () => {
+        // Code to display the current key
+        glissandoBt.classList.toggle('button-pressed');
+        glissandoMode = !glissandoMode;
+        if (glissandoMode) {
+            socket.emit('glissando', { active: 1 });
+        } else {
+            socket.emit('glissando', { active: 0 });
+        }
+
+    });
+
+    function remap(value, low1, high1, low2, high2) {
+        return low2 + (high2 - low2) * (value - low1) / (high1 - low1);
+    }
 
 }

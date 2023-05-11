@@ -6,6 +6,7 @@ const app = express();
 const tonal = require("tonal");
 const { Note, Scale, Transpose } = require("tonal");
 const Distance = require("tonal-distance");
+const TWEEN = require('@tweenjs/tween.js')
 
 // Define an array for storing OSC message events with timestamps
 const numPianoKeys = 61;
@@ -43,7 +44,7 @@ io.on('connection', function (socket) {
   });
   udpPort.on('message', function (message) {
     console.log('Received OSC message:', message);
-    socket.emit('osc', message);
+    socket.emit('osc', message); // transmit message to frontend via websockets
     onOSCMessage(message);
 
   });
@@ -60,6 +61,27 @@ io.on('connection', function (socket) {
   socket.on('update-gen-notes', function (message) {
     midiGenNotes = message.notes;
     console.log('new generative note list:', midiGenNotes);
+
+  });
+
+  socket.on('noteOn', function (message) {
+    console.log('noteOn:', message.note + " " + message.channel);
+    let event = { address: "/keyOnPlay", args: [ message.channel, message.note] };
+    udpPort.send(event); // send to SC
+    socket.emit('osc', event); // display on keyboard
+
+  });
+  socket.on('noteBend', function (message) {
+    let event = { address: "/onBend", args: [message.channel, message.amount] };
+    udpPort.send(event); // send to SC
+    socket.emit('osc', event); // display on keyboard
+
+  });
+  socket.on('noteOff', function (message) {
+    console.log('noteOff:', message.note + " " + message.channel);
+    let event = { address: "/keyOffPlay", args: [message.channel, message.note] };
+    udpPort.send(event); // send to SC
+    socket.emit('osc', event); // display on keyboard
 
   });
 
@@ -80,9 +102,69 @@ io.on('connection', function (socket) {
     isCapturingNotes = false;
     captureNotes = [];
     console.log('cleared capture notes: ' + captureNotes.length);
+    // let event = { address: "/onBend", args: [Math.random(1)*8000] };
+    // udpPort.send(event); // send to SC
+    // socket.emit('osc', event); // display on keyboard
+
+
   });
 
+  socket.on('getNoteRatio', function (message) {
+    const midi1 = message.midiStart;
+    const midi2 = message.midiEnd;
+    console.log('get note Ratio');
+        // Generate random MIDI values if necessary
+        if (midi1 === -1 && midi2 === -1) {
+          midi1 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
+          do {
+            midi2 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
+          } while (Math.abs(midi2 - midi1) > 12);
+        } else if (Math.abs(midi2 - midi1) > 12) {
+          console.log("The second argument is out of range.");
+          return;
+        }
+      
+        // Convert MIDI values to note names
+        const note1 = Note.fromMidi(midi1);
+        const note2 = Note.fromMidi(midi2);
+      
+        // Calculate the ratio between the two notes
+        const ratio = (midi2 - midi1) / 12;
+      
+        // Print the notes and the ratio to the console
+        console.log(`${note1} and ${note2} is ${ratio}`);
+        socket.emit('noteRatio', {midiStart: midi1, midiEnd: midi2, ratio: ratio });
+  })
 
+
+  function calculateNoteRatio(midi1 = -1, midi2 = -1) {
+    // Generate random MIDI values if necessary
+    if (midi1 === -1 && midi2 === -1) {
+      midi1 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
+      do {
+        midi2 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
+      } while (Math.abs(midi2 - midi1) > 12);
+    } else if (Math.abs(midi2 - midi1) > 12) {
+      console.log("The second argument is out of range.");
+      return;
+    }
+  
+    // Convert MIDI values to note names
+    const note1 = Note.fromMidi(midi1);
+    const note2 = Note.fromMidi(midi2);
+  
+    // Calculate the ratio between the two notes
+    const ratio = (midi2 - midi1) / 12;
+  
+    // Print the notes and the ratio to the console
+    console.log(`${note1} and ${note2} is ${ratio}`);
+  }
+  
+  // Example usage
+
+  // calculateNoteRatio(60, 69); // C4 and C5 is 1
+  // calculateNoteRatio(60, 48); // C4 and C3 is -1
+  
   // Define a function for playing back an event array using a loop and a callback
   function playEvents(eventArray, callback) {
     // Set an initial index and time offset
@@ -165,6 +247,13 @@ io.on('connection', function (socket) {
       isRecording = !isRecording;
     }
   });
+
+  socket.on('glissando', (data) => {
+    let event = { address: "/glissando", args: data.active };
+    udpPort.send(event);
+
+  })
+
   let isGeneratingNotes = false;
   let noteDuration = 500; // milliseconds
   let playingNotes = [];
@@ -174,14 +263,14 @@ io.on('connection', function (socket) {
     console.log("isGenerating: " + isGenerating);
     let randomNote = midiGenNotes[Math.floor(Math.random() * midiGenNotes.length)];
     console.log("randomNote: " + randomNote);
-
+    let channel = 0;
     if (!isGenerating && loopId) {
       clearInterval(loopId);
       loopId = null;
       isGeneratingNotes = false;
       // Turn off any currently playing notes
       playingNotes.forEach(({ note }) => {
-        let event = { address: "/keyOffPlay", args: [note] };
+        let event = { address: "/keyOffPlay", args: [channel, note] };
         udpPort.send(event);
         socket.emit('osc', event);
       });
@@ -199,8 +288,9 @@ io.on('connection', function (socket) {
 
     function playNote() {
       let randomNote = midiGenNotes[Math.floor(Math.random() * midiGenNotes.length)];
+      let channel = 0;
       console.log("randomNote: " + randomNote);
-      let event = { address: "/keyOnPlay", args: [randomNote] };
+      let event = { address: "/keyOnPlay", args: [channel, randomNote] };
       udpPort.send(event); // send to SC
       socket.emit('osc', event); // display on keyboard
 
@@ -208,7 +298,7 @@ io.on('connection', function (socket) {
 
       // Schedule a note off message after the duration
       setTimeout(() => {
-        let event = { address: "/keyOffPlay", args: [randomNote] };
+        let event = { address: "/keyOffPlay", args: [channel, randomNote] };
         udpPort.send(event);
         socket.emit('osc', event); // display on keyboard
         // Remove the note from the playingNotes array
@@ -225,9 +315,11 @@ io.on('connection', function (socket) {
   }
 
 
-  // This function is called when a MIDI message is received
+  // This function is called when a OSC message is received
   function onOSCMessage(message) {
-    let midi = message.args[0].value;
+    console.log("osc message: " + message.args)
+    let channel = message.args[0].value;
+    let midi = message.args[1].value;
     let address = message.address;
     let key = midi - 24;
 
@@ -235,12 +327,11 @@ io.on('connection', function (socket) {
       // Push the message object with a timestamp to the events array
       events.push({ address: message.address, args: message.args, timestamp: Date.now() });
     } else if (address == '/keyOn' && isCapturingNotes) {
-      captureNotes.push(message.args[0]);
+      captureNotes.push(midi);
     } else if (address == '/transpose') {
       let transposed  = transposeNotes(captureNotes, -2, currentKey);
       let event = { address: "/noteCapture", args: transposed };
       udpPort.send(event);
-      
     }
   }
 

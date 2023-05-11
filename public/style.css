@@ -14,6 +14,7 @@ body {
   margin-top: 20px;
 }
 
+
 .note-button {
   border-radius: 20px;
   border: 1px solid #fff;
@@ -28,6 +29,9 @@ body {
 
 }
 
+.second-row {
+  top: 50px;
+}
 .chord-button {
   border-radius: 20px;
   border: 1px solid #fff;
