@@ -18,7 +18,7 @@ body {
 .note-button {
   border-radius: 20px;
   border: 1px solid #fff;
-  background-color: rgba(192, 192, 192, 0.1);
+  background-color: #2c291b;
   color: #fff;
   font-size: 14px;
   font-weight: light;
@@ -61,7 +61,7 @@ body {
 
 .button-pressed {
 
-  background-color: rgba(88, 88, 222, 0.5) !important;
+  background-color: rgba(89, 89, 222, 0.502) !important;
 }
 
 .button-row button:hover {

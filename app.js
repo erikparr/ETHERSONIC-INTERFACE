@@ -4,7 +4,7 @@ const osc = require('osc');
 const express = require('express');
 const app = express();
 const tonal = require("tonal");
-const { Note, Scale, Transpose } = require("tonal");
+const { Note, Scale, Transpose, Chord } = require("tonal");
 const Distance = require("tonal-distance");
 const TWEEN = require('@tweenjs/tween.js')
 
@@ -64,9 +64,14 @@ io.on('connection', function (socket) {
 
   });
 
+  socket.on('getChord', function (message) {
+    let event = { address: "/keyOnPlay", args: [message.channel, message.note] };
+    socket.emit('gotChord', { midiChord: getMidiChord(message.rootNote, message.chordType) });
+
+  });
   socket.on('noteOn', function (message) {
     console.log('noteOn:', message.note + " " + message.channel);
-    let event = { address: "/keyOnPlay", args: [ message.channel, message.note] };
+    let event = { address: "/keyOnPlay", args: [message.channel, message.note] };
     udpPort.send(event); // send to SC
     socket.emit('osc', event); // display on keyboard
 
@@ -93,6 +98,7 @@ io.on('connection', function (socket) {
       console.log("send capture to osc: " + captureNotes);
       // when toggled off send notes to supercollider
       let event = { address: "/noteCapture", args: captureNotes };
+      // socket.emit('noteCapture', event); // display on keyboard
       console.log(event.args);
       udpPort.send(event);
     }
@@ -113,27 +119,27 @@ io.on('connection', function (socket) {
     const midi1 = message.midiStart;
     const midi2 = message.midiEnd;
     console.log('get note Ratio');
-        // Generate random MIDI values if necessary
-        if (midi1 === -1 && midi2 === -1) {
-          midi1 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
-          do {
-            midi2 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
-          } while (Math.abs(midi2 - midi1) > 12);
-        } else if (Math.abs(midi2 - midi1) > 12) {
-          console.log("The second argument is out of range.");
-          return;
-        }
-      
-        // Convert MIDI values to note names
-        const note1 = Note.fromMidi(midi1);
-        const note2 = Note.fromMidi(midi2);
-      
-        // Calculate the ratio between the two notes
-        const ratio = (midi2 - midi1) / 12;
-      
-        // Print the notes and the ratio to the console
-        console.log(`${note1} and ${note2} is ${ratio}`);
-        socket.emit('noteRatio', {midiStart: midi1, midiEnd: midi2, ratio: ratio });
+    // Generate random MIDI values if necessary
+    if (midi1 === -1 && midi2 === -1) {
+      midi1 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
+      do {
+        midi2 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
+      } while (Math.abs(midi2 - midi1) > 12);
+    } else if (Math.abs(midi2 - midi1) > 12) {
+      console.log("The second argument is out of range.");
+      return;
+    }
+
+    // Convert MIDI values to note names
+    const note1 = Note.fromMidi(midi1);
+    const note2 = Note.fromMidi(midi2);
+
+    // Calculate the ratio between the two notes
+    const ratio = (midi2 - midi1) / 12;
+
+    // Print the notes and the ratio to the console
+    console.log(`${note1} and ${note2} is ${ratio}`);
+    socket.emit('noteRatio', { midiStart: midi1, midiEnd: midi2, ratio: ratio });
   })
 
 
@@ -148,23 +154,53 @@ io.on('connection', function (socket) {
       console.log("The second argument is out of range.");
       return;
     }
-  
+
     // Convert MIDI values to note names
     const note1 = Note.fromMidi(midi1);
     const note2 = Note.fromMidi(midi2);
-  
+
     // Calculate the ratio between the two notes
     const ratio = (midi2 - midi1) / 12;
-  
+
     // Print the notes and the ratio to the console
     console.log(`${note1} and ${note2} is ${ratio}`);
   }
-  
+  //
+  function getMidiChord(rootNote, chordType, inversion = 0) {
+console.log('chordType: ', chordType);
+    // Convert root note from MIDI to note name AND remove octave number
+    const rootName = Note.fromMidi(rootNote).replace(/[0-9]/g, '');
+    // Combine the root note and chord type to get the chord name
+    const chordName = rootName + chordType;
+    console.log('chordName: ', chordName)
+    // Get the notes in the chord
+    const chordNotes = Chord.get(chordName).notes;
+    console.log('chordNotes: ', chordNotes)
+    // Convert all the notes to MIDI
+    const chromaValues = chordNotes.map(Note.chroma)
+    console.log('chordNotes: ', chordNotes);
+    console.log('chromaValues: ', chromaValues);
+
+    // this way the root note is always the first note
+    // unless inversion is set
+    chromaValues.forEach((item, i) => {
+    if (inversion == 0) {
+      if (item < chromaValues[0]) {
+        chromaValues[i] = item + 12;
+      }
+    }
+  });
+    // add root note to chord
+    const chordResult = chromaValues.map(item => (item - chromaValues[0]) + rootNote);
+    console.log(chordResult);
+    return chordResult
+
+  }
   // Example usage
 
   // calculateNoteRatio(60, 69); // C4 and C5 is 1
   // calculateNoteRatio(60, 48); // C4 and C3 is -1
-  
+
   // Define a function for playing back an event array using a loop and a callback
   function playEvents(eventArray, callback) {
     // Set an initial index and time offset
@@ -178,6 +214,7 @@ io.on('connection', function (socket) {
 
       // Calculate the delay time based on the timestamp difference and offset
       let delay = index === 0 ? 0 : event.timestamp - eventArray[index - 1].timestamp - offset;
+
 
       // Set a timeout for sending the OSC message after the delay time
       setTimeout(function () {
@@ -329,7 +366,7 @@ io.on('connection', function (socket) {
     } else if (address == '/keyOn' && isCapturingNotes) {
       captureNotes.push(midi);
     } else if (address == '/transpose') {
-      let transposed  = transposeNotes(captureNotes, -2, currentKey);
+      let transposed = transposeNotes(captureNotes, -2, currentKey);
       let event = { address: "/noteCapture", args: transposed };
       udpPort.send(event);
     }
@@ -380,43 +417,43 @@ io.on('connection', function (socket) {
   }
 
 
-function midiKeysInKey(key, scaleType = "major", keyboardSize = 61) {
-  const lowestMidi = keyboardSize === 61 ? 36 : 21; // MIDI note for C2 (36) and C0 (21)
-  const highestMidi = keyboardSize === 61 ? 96 : 108; // MIDI note for C7 (96) and C9 (108)
-  const scale = tonal.Scale.get(`${key} ${scaleType}`).notes;
-  const midiKeys = [];
+  function midiKeysInKey(key, scaleType = "major", keyboardSize = 61) {
+    const lowestMidi = keyboardSize === 61 ? 36 : 21; // MIDI note for C2 (36) and C0 (21)
+    const highestMidi = keyboardSize === 61 ? 96 : 108; // MIDI note for C7 (96) and C9 (108)
+    const scale = tonal.Scale.get(`${key} ${scaleType}`).notes;
+    const midiKeys = [];
 
-  for (let i = lowestMidi; i <= highestMidi; i++) {
-    const note = tonal.Note.fromMidi(i);
-    const degree = tonal.Scale.degrees(scale, note);
-    if (degree) {
-      midiKeys.push(i);
-    }
-  }
-
-  return midiKeys;
-}
-
-function transposeNotes(notes, interval, key, scaleType = "major") {
-  const keyboardSize = 61;
-  const result = []; // Initialize the result array
-  const midiKeys = midiKeysInKey(key, scaleType, keyboardSize);
-
-  // Iterate through the input notes
-  for (const note of notes) {
-    const noteIndex = midiKeys.indexOf(note);
-
-    if (noteIndex !== -1) {
-      const transposedIndex = noteIndex + interval;
-      if (transposedIndex >= 0 && transposedIndex < midiKeys.length) {
-        result.push(midiKeys[transposedIndex]);
+    for (let i = lowestMidi; i <= highestMidi; i++) {
+      const note = tonal.Note.fromMidi(i);
+      const degree = tonal.Scale.degrees(scale, note);
+      if (degree) {
+        midiKeys.push(i);
       }
     }
+
+    return midiKeys;
   }
 
-  // Return the result array with transposed MIDI values
-  return result;
-}
+  function transposeNotes(notes, interval, key, scaleType = "major") {
+    const keyboardSize = 61;
+    const result = []; // Initialize the result array
+    const midiKeys = midiKeysInKey(key, scaleType, keyboardSize);
+
+    // Iterate through the input notes
+    for (const note of notes) {
+      const noteIndex = midiKeys.indexOf(note);
+
+      if (noteIndex !== -1) {
+        const transposedIndex = noteIndex + interval;
+        if (transposedIndex >= 0 && transposedIndex < midiKeys.length) {
+          result.push(midiKeys[transposedIndex]);
+        }
+      }
+    }
+
+    // Return the result array with transposed MIDI values
+    return result;
+  }
 
 
 
