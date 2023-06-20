@@ -63,12 +63,19 @@ io.on('connection', function (socket) {
     console.log('new generative note list:', midiGenNotes);
 
   });
-
+  // Listen for incoming chord request messages
   socket.on('getChord', function (message) {
-    let event = { address: "/keyOnPlay", args: [message.channel, message.note] };
+    // let event = { address: "/keyOnPlay", args: [message.channel, message.note] };
     socket.emit('gotChord', { midiChord: getMidiChord(message.rootNote, message.chordType) });
 
   });
+
+  // Listen for
+  socket.on('whatChord', function (message) {
+  socket.emit('foundChord', { chordName: findChord(message.midiNotes) });   
+  });
+
+
   socket.on('noteOn', function (message) {
     console.log('noteOn:', message.note + " " + message.channel);
     let event = { address: "/keyOnPlay", args: [message.channel, message.note] };
@@ -165,7 +172,23 @@ io.on('connection', function (socket) {
     // Print the notes and the ratio to the console
     console.log(`${note1} and ${note2} is ${ratio}`);
   }
-  //
+
+  // Find the chord with the given notes
+  function findChord(midiNotes) {
+    // convert to notes
+    let notes = midiNotes.map(Note.fromMidi);
+    // Find the chord
+    let chord = Chord.detect(notes);
+    console.log('chord: ', chord);
+    // If no chord is found, return an empty string
+    if (chord.length === 0) {
+      return '';
+    }
+    // Otherwise, return the chord name
+    return Chord.detect(notes);
+  }
+
+  // Find the notes in a chord
   function getMidiChord(rootNote, chordType, inversion = 0) {
 console.log('chordType: ', chordType);
     // Convert root note from MIDI to note name AND remove octave number

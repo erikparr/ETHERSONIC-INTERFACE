@@ -14,6 +14,26 @@ body {
   margin-top: 20px;
 }
 
+.display-chord-name {
+  z-index: 999;
+  position: absolute;
+  top: 40%;
+  right: 50%;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 50px;
+  margin-top: 20px;
+}
+#chord-name {
+  font-family: 'Helvetica Neue', 'sans-serif';
+  font-size: 30px;
+  font-weight: 100;
+  color: #fff;
+  /* text-transform: uppercase; */
+  letter-spacing: 1px;
+  margin-right: 10px;
+}
 
 .note-button {
   border-radius: 20px;
@@ -41,6 +61,19 @@ body {
   font-weight: light;
   text-transform: uppercase;
   padding: 5px 10px;
+  /* opacity: 0.1; */
+  transition: opacity 0.2s ease-in-out;
+
+}
+.whatChord-button {
+  border-radius: 20px;
+  border: 1px solid #fff;
+  background-color: rgba(192, 192, 192, 0.1);
+  color: #fff;
+  font-size: 12px;
+  font-weight: light;
+  text-transform: uppercase;
+  padding: 5px 10px !important;
   /* opacity: 0.1; */
   transition: opacity 0.2s ease-in-out;
 

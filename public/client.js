@@ -7,6 +7,7 @@ const displayNotes = [];
 const displayMidiValues = [];
 const positionsX = [];
 let displayChordNotes = [];
+let pressedKeys = []; // array of midi notes being pressed at a given time
 const numChannels = 10;
 let notesList
 /// Define an array of notes, starting with C0 and ending with C8
@@ -34,6 +35,7 @@ let displayKey = false;
 let genBtPressed = false;
 let chordBtPressed = false;
 let glissandoMode = false;
+let whatChord = false;
 let numNotesPlaying = 0;
 
 const chordTypes = [
@@ -44,6 +46,8 @@ const chordTypes = [
     { name: '7', intervals: [0, 4, 7, 10] },
     { name: 'dim', intervals: [0, 3, 6] },
     { name: 'dim7', intervals: [0, 3, 6, 9] },
+    { name: '7b5', intervals: [0, 3, 6, 10] },
+    { name: 'm#5', intervals: [0, 3, 6, 10] },
     { name: 'm7b5', intervals: [0, 3, 6, 10] },
     { name: 'maj7#5', intervals: [0, 4, 8, 11] },
     { name: 'aug', intervals: [0, 4, 8] },
@@ -174,7 +178,11 @@ window.onload = function () {
         keyboard.displayChord(displayChordNotes);
     });
 
-
+    //listen for foundChord messages
+    socket.on('foundChord', function (message) {
+        let element = document.getElementById('chord-name');
+        element.innerText = message.chordName;
+    });
 
     // Listen for Enter key press
     document.addEventListener("keydown", function (event) {
@@ -254,13 +262,7 @@ window.onload = function () {
 
 
 
-
-
-
-
-
-
-
+    let incrementTimeout;
     // This function is called when a websockets message is received
     function onWebsocketMessage(message) {
         let midi = parseInt(message.args[1]);
@@ -271,6 +273,7 @@ window.onload = function () {
         // const release = setTimeout(function () { releaseNote(key); }, 1000);
         if (address == "/keyOn" || address == "/keyOnPlay") {
             //display midi value on keyboard
+            pressedKeys.push(midi);
             keyboard.keys[key].key.fill = keyboard.colorList.active; // set it as color temporarily
             displayNotes[key].value = midiToNote(midi);
             displayMidiValues[key].value = midi;
@@ -280,8 +283,23 @@ window.onload = function () {
             }
             numNotesPlaying++;
 
+
+            // wait to detect chord
+            if (whatChord && numNotesPlaying > 2 && numNotesPlaying < 6) {
+                if (incrementTimeout) {
+                    clearTimeout(incrementTimeout);
+                }
+                // start a new timeout
+                incrementTimeout = setTimeout(() => {
+                    socket.emit('whatChord', { midiNotes: pressedKeys});
+                }, 500);
+            }
+
         } else if (address == "/keyOff" || address == "/keyOffPlay") {
             releaseNote(key);
+            pressedKeys = pressedKeys.filter(item => item !== midi);
+
+
         } else if (address == '/glissOn') {
             console.log("get note ratio...")
             //get note ratio for glissando mode
@@ -434,6 +452,14 @@ window.onload = function () {
         //     let noteIndex = noteLetters.indexOf(selectedNote); // renderChords expects a specific note order index
         //     keyboard.renderChords(noteIndex, selectedChordType);
         // }
+    });
+
+    // find and display chord name
+    const whatChordBt = document.getElementById('whatChord-button');
+    whatChordBt.addEventListener('click', () => {
+        whatChord = !whatChord;
+        // toggle button color
+        whatChordBt.classList.toggle('button-pressed');
     });
 
 
