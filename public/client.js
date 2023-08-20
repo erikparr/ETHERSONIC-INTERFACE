@@ -8,8 +8,8 @@ const displayMidiValues = [];
 const positionsX = [];
 let displayChordNotes = [];
 let pressedKeys = []; // array of midi notes being pressed at a given time
-const numChannels = 10;
-let notesList
+let numChannels = 10;
+let notesList;
 /// Define an array of notes, starting with C0 and ending with C8
 const notes = ['C0', 'C#0', 'D0', 'D#0', 'E0', 'F0', 'F#0', 'G0', 'G#0', 'A0',
     'A#0', 'B0', 'C1', 'C#1', 'D1', 'D#1', 'E1', 'F1', 'F#1', 'G1', 'G#1', 'A1',
@@ -36,6 +36,14 @@ let genBtPressed = false;
 let chordBtPressed = false;
 let glissandoMode = false;
 let whatChord = false;
+let chordCap1 = false;
+let chordCap2 = false;
+let morphPlay = false;
+let numLoops = 0;
+let isMorphLooping = false;
+let numMorphs = 0;
+let numMorphsComplete = 0;
+let isEndLoop = false;
 let numNotesPlaying = 0;
 
 const chordTypes = [
@@ -72,40 +80,44 @@ const noteMap = { C: 36, "C#": 37, D: 38, "D#": 39, E: 40, F: 41, "F#": 42, G: 4
 //To ensure that a script is executed after the body has been loaded, you can use the window.onload event or the DOMContentLoaded event to wait for the HTML page to finish loading before executing the script.
 window.onload = function () {
 
-
-
-
-
-    function playAndBendNote(noteInput = -1, noteRatio = 1.0) {
+    function playAndBendNote(noteInput = -1, startRatio = 0.0, endRatio = 1.0, holdDuration1 = 2000, holdDuration2 = 2000, bendDuration = 5000, loopPlay = false) {
         console.log("noteInput: " + noteInput)
         let noteChannel = numChan;
-
-        let bendDuration = 5000;
-        let endBend = remap(noteRatio, -1.0, 1.0, 0, 16383);
+        // 0 = -1 semitones, 8192 = no bend, 16383 = 1 semitones
+        let startBend = remap(startRatio, -1.0, 1.0, 0, 16383);
+        let endBend = remap(endRatio, -1.0, 1.0, 0, 16383);
         let endAmp = 1;
-        let randomNote = displayKeyMidi[Math.floor(Math.random() * displayKeyMidi.length)]
-        let note = 0;
+        let note = noteInput;
         let easing = TWEEN.Easing.Quadratic.In;
-        if (noteInput != -1) {
-            note = noteInput;
-        } else {
-            note = randomNote
+
+        // turn note on unless already playing in a loop
+        if (!isMorphLooping && !isEndLoop) {
+            socket.emit('noteOn', { note: note, channel: noteChannel });
         }
-        // if (noteRatio < 0.0) { easing = TWEEN.Easing.Elastic.Out }
-
-        console.log("bend note: " + note + "endBend: " + endBend);
-        socket.emit('noteOn', { note: note, channel: noteChannel });
+        if (!isMorphLooping && isEndLoop) {
+            console.log("end loop");
+        }
         setTimeout(() => {
-
-            const bend = { x: 8192, y: 0 } // x = bend amt, y = amplitude
+            console.log("-- bend note --")
+            // 0 = -1 semitones, 8192 = no bend, 16383 = 1 semitones
+            const bendZero = 8192;
+            const bend = { x: startBend, y: 0 } // x = bend amt, y = amplitude
             const tween = new TWEEN.Tween(bend) // Create a new tween that modifies 'coords'.
-                .to({ x: endBend, y: endAmp }, bendDuration) // Move to (300, 200) in 1 second.
+                .to({ x: endBend, y: endAmp }, bendDuration) // Move to target in x seconds.
                 .easing(easing) // Use an easing function to make the animation smooth.
                 .onUpdate(() => {
                     socket.emit('noteBend', { amount: bend.x, channel: noteChannel });
-                    // console.log(bend.x / 8192)
                 }).onComplete(() => {
-                    socket.emit('noteOff', { note: note, channel: noteChannel });
+                    console.log("### bend complete ###")
+                    // wait to release note
+                    setTimeout(() => {
+                        if (!isMorphLooping) { // turn note off unless already playing in a loop
+                            socket.emit('noteOff', { note: note, channel: noteChannel });
+                            // must reset bend to 8192
+                            socket.emit('noteBend', { amount: bendZero, channel: noteChannel });
+                        }
+                        numMorphsComplete++; // keep track of how many morphs have been completed
+                    }, holdDuration2);
 
                 })
                 .start() // Start the tween immediately.
@@ -115,8 +127,10 @@ window.onload = function () {
                 requestAnimationFrame(animate)
             }
             requestAnimationFrame(animate)
-
-        }, 100)
+            if (loopPlay) {
+                isMorphLooping = true;
+            }
+        }, holdDuration1);
         numChan = (numChan + 1) % numChannels;
     }
 
@@ -168,7 +182,7 @@ window.onload = function () {
 
     //listen for noteRatio messages
     socket.on('noteRatio', function (message) {
-        playAndBendNote(parseInt(message.midiStart), parseFloat(message.ratio))
+        playAndBendNote(parseInt(message.midiStart), 0.0, parseFloat(message.ratio))
         console.log('midiStart: ', message.midiStart, 'midiEnd: ', message.midiEnd, 'ratio: ', message.ratio);
     });
 
@@ -178,7 +192,88 @@ window.onload = function () {
         keyboard.displayChord(displayChordNotes);
     });
 
-    //listen for foundChord messages
+    socket.on('reset-morph-chords', function (message) {
+        console.log('reset-morph-chords');
+        chordCap1 = false;
+        chordCap2 = false;
+        morphPlay = false;
+        numLoops = 0;
+        numNotesPlaying = 0;
+        chord1Bt.classList.remove('button-pressed');
+        chord2Bt.classList.remove('button-pressed');
+        chordPlayBt.classList.remove('button-pressed');
+        chordResetBt.classList.remove('button-pressed');
+        isMorphLooping = false;
+    });
+
+    socket.on('morphChord', function (message) {
+        let startChord = message.midiStartChord;
+        let endChord = message.midiEndChord;
+        let noteRatio = message.ratio;
+        let startHoldDur = 4000;
+        let endHoldDur = 4000;
+        let morphDur = 2000;
+        let totalDur = startHoldDur + endHoldDur + morphDur;
+        let totalLoops = 4;
+        let midichord = startChord;
+        let initRatio = Array.from({ length: noteRatio.length }).fill(0.0); // initialize to 0.0 for each note
+        let startMorphRatio = initRatio;
+        let endMorphRatio = noteRatio;
+        let numLoops = 0;
+        let intervalId;
+        numMorphs = startChord.length; // keep track of how many morphs to be completed
+        // make sure numChannels corresponds to the number of notes in the chord
+         numChannels = startChord.length;
+        numChan = 0;
+        // Extract the main logic into a separate function
+        function morphingLogic(startLoop = false) {
+            console.log("*** numLoops: " + numLoops + " ***")
+            console.log("*** morphs " + numMorphsComplete + "/" + numMorphs + " complete ***")
+            if (numMorphsComplete === numMorphs) {
+                numMorphsComplete = 0;
+            }
+            // alternate between start and end chord
+            if (!startLoop) {
+                if (numLoops % 2 == 0) {
+                    // midichord = startChord;
+                    startMorphRatio = initRatio;
+                    endMorphRatio = noteRatio;
+                } else {
+                    // midichord = endChord;
+                    startMorphRatio = endMorphRatio;
+                    endMorphRatio = initRatio;
+                }
+            }
+            console.log("startMorphRatio: " + startMorphRatio + " endMorphRatio: " + endMorphRatio);
+            // stop after 4 loops
+            if (numLoops >= totalLoops - 1) {
+                console.log("stop morphing");
+                isMorphLooping = false;
+                isEndLoop = true;
+                clearInterval(intervalId);
+            }
+
+            // bend each note in the chord
+            midichord.forEach((note, i) => {
+                console.log("current morph: " + midichord);
+                note = parseInt(note);
+                playAndBendNote(note, startMorphRatio[i], endMorphRatio[i], startHoldDur, endHoldDur, morphDur, startLoop);
+            });
+
+            numLoops++;
+        }
+
+        if (midichord.length > 0) {
+            // Execute immediately
+            morphingLogic(true); //set as true to start start loop
+            console.log("totalDur: " + totalDur)
+            // Then execute at regular intervals
+            intervalId = setInterval(morphingLogic, totalDur);
+        }
+    });
+
+
+    //listen for foundChord messagaes
     socket.on('foundChord', function (message) {
         let element = document.getElementById('chord-name');
         element.innerText = message.chordName;
@@ -278,8 +373,9 @@ window.onload = function () {
             displayNotes[key].value = midiToNote(midi);
             displayMidiValues[key].value = midi;
             // display chord notes
-            if (chordBtPressed && (numNotesPlaying === 0) && selectedChordType.name != null) {
-                socket.emit('getChord', { rootNote: midi, chordType: selectedChordType.name })
+            console.log("numNotesPlaying: ", numNotesPlaying);
+            if (chordBtPressed && (numNotesPlaying === 0) && selectedChordType?.name !== null) {
+                socket.emit('getChord', { rootNote: midi, chordType: selectedChordType?.name })
             }
             numNotesPlaying++;
 
@@ -291,7 +387,7 @@ window.onload = function () {
                 }
                 // start a new timeout
                 incrementTimeout = setTimeout(() => {
-                    socket.emit('whatChord', { midiNotes: pressedKeys});
+                    socket.emit('whatChord', { midiNotes: pressedKeys });
                 }, 500);
             }
 
@@ -307,20 +403,22 @@ window.onload = function () {
         }
         //release note
         function releaseNote(key) {
-            numNotesPlaying--;
-            displayNotes[key].value = "";
-            displayMidiValues[key].value = ""
-            keyboard.keys[key].key.fill = keyboard.keys[key].color;
-            displayChordNotes.forEach((note, i) => {
-                console.log('note: ', note);
-                const keyIndex = note - 36; // 36 is the midi value of C2, the lowest note on the keyboard
-                let newColor = keyboard.keys[keyIndex].color;
-                // if currently displaying chord, set chord root to red, otherwise reset to default color
-                if (numNotesPlaying > 0) {
-                    (i === 0) ? newColor = keyboard.colorList.root : newColor = keyboard.colorList.chord;
-                }
-                keyboard.keys[keyIndex].key.fill = newColor;
-            });
+            if (Number.isInteger(key) && key >= 0 && key < displayNotes.length) {
+                numNotesPlaying--;
+                displayNotes[key].value = "";
+                displayMidiValues[key].value = ""
+                keyboard.keys[key].key.fill = keyboard.keys[key].color;
+                displayChordNotes.forEach((note, i) => {
+                    console.log('note: ', note);
+                    const keyIndex = note - 36; // 36 is the midi value of C2, the lowest note on the keyboard
+                    let newColor = keyboard.keys[keyIndex].color;
+                    // if currently displaying chord, set chord root to red, otherwise reset to default color
+                    if (numNotesPlaying > 0) {
+                        (i === 0) ? newColor = keyboard.colorList.root : newColor = keyboard.colorList.chord;
+                    }
+                    keyboard.keys[keyIndex].key.fill = newColor;
+                });
+            }
         }
     }
 
@@ -475,6 +573,60 @@ window.onload = function () {
         }
 
     });
+
+    // MPE chord morphing
+    // capture the notes in the chord
+    const chord1Bt = document.getElementById('chord-capture1');
+    chord1Bt.addEventListener('click', () => {
+        // Code to display the current key
+        chord1Bt.classList.toggle('button-pressed');
+        chordCap1 = !chordCap1;
+        if (chordCap1) {
+            socket.emit('chord-capture-1', { active: 1 });
+        } else {
+            socket.emit('chord-capture-1', { active: 0 });
+        }
+    });
+    // MPE chord morphing
+    // capture the notes in the chord
+    const chord2Bt = document.getElementById('chord-capture2');
+    chord2Bt.addEventListener('click', () => {
+        // Code to display the current key
+        chord2Bt.classList.toggle('button-pressed');
+        chordCap2 = !chordCap2;
+        if (chordCap2) {
+            socket.emit('chord-capture-2', { active: 1 });
+        } else {
+            socket.emit('chord-capture-2', { active: 0 });
+        }
+    });
+
+    // MPE chord morphing
+    // start playing the notes in the chord
+    const chordPlayBt = document.getElementById('chord-capture-play');
+    chordPlayBt.addEventListener('click', () => {
+        // Code to display the current key
+        chordPlayBt.classList.toggle('button-pressed');
+        morphPlay = !morphPlay;
+        if (morphPlay) {
+            socket.emit('chord-capture-play', { play: 1 });
+            chordPlayBt.innerText = '⏹';
+        } else {
+            socket.emit('chord-capture-play', { play: 0 });
+            chordPlayBt.innerText = '▶️';
+        }
+    });
+
+    // MPE chord morphing
+    // reset the notes in the chord
+    const chordResetBt = document.getElementById('chord-capture-reset');
+    chordResetBt.addEventListener('click', () => {
+        // Code to display the current key
+        chordResetBt.classList.toggle('button-pressed');
+        socket.emit('chord-capture-reset', { numChannels: numChan });
+    });
+
+
 
     function remap(value, low1, high1, low2, high2) {
         return low2 + (high2 - low2) * (value - low1) / (high1 - low1);

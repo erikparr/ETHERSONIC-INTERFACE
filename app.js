@@ -15,7 +15,11 @@ let isPlaying = false;
 let isRecording = false;
 let midiGenNotes = [];
 let isCapturingNotes = false;
+let isCapturingChord1 = false;
+let isCapturingChord2 = false;
 let captureNotes = []; // manually add midi notes to a list
+let captureChords = [[], []]; // add midi notes to a chord list
+let ratioChords = [[]];
 let currentKey = 'C';
 // This will create an instance of the express app, use the express.static middleware to serve the public directory as a static file directory, and create the HTTP server using the express app
 app.use(express.static('public'));
@@ -72,7 +76,7 @@ io.on('connection', function (socket) {
 
   // Listen for
   socket.on('whatChord', function (message) {
-  socket.emit('foundChord', { chordName: findChord(message.midiNotes) });   
+    socket.emit('foundChord', { chordName: findChord(message.midiNotes) });
   });
 
 
@@ -84,6 +88,8 @@ io.on('connection', function (socket) {
 
   });
   socket.on('noteBend', function (message) {
+    console.log('noteBend:', message.channel + " " + message.amount);
+
     let event = { address: "/onBend", args: [message.channel, message.amount] };
     udpPort.send(event); // send to SC
     socket.emit('osc', event); // display on keyboard
@@ -126,29 +132,34 @@ io.on('connection', function (socket) {
     const midi1 = message.midiStart;
     const midi2 = message.midiEnd;
     console.log('get note Ratio');
-    // Generate random MIDI values if necessary
-    if (midi1 === -1 && midi2 === -1) {
-      midi1 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
-      do {
-        midi2 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
-      } while (Math.abs(midi2 - midi1) > 12);
-    } else if (Math.abs(midi2 - midi1) > 12) {
-      console.log("The second argument is out of range.");
-      return;
-    }
-
-    // Convert MIDI values to note names
-    const note1 = Note.fromMidi(midi1);
-    const note2 = Note.fromMidi(midi2);
-
-    // Calculate the ratio between the two notes
-    const ratio = (midi2 - midi1) / 12;
+    const ratio = getNoteRatio(midi1, midi2);
 
     // Print the notes and the ratio to the console
     console.log(`${note1} and ${note2} is ${ratio}`);
     socket.emit('noteRatio', { midiStart: midi1, midiEnd: midi2, ratio: ratio });
   })
 
+  // manually play morph-chord
+  socket.on('chord-capture-play', function (message) {
+    console.log('chord-capture-play');
+    // process chords and trigger play message to client
+    if (message.play = true) {
+      // check if both chords have notes
+      if (captureChords[0].length > 0 && captureChords[1].length > 0) {
+        processChords(captureChords);
+      } else {
+        // reset chord capture if no notes
+        resetMorphChords();
+        stopAllNotes();
+      }
+    }
+  })
+
+  socket.on('chord-capture-reset', function (message) {
+    let numChan = message.numChannels;
+    resetMorphChords();
+    stopAllNotes(numChan);
+  })
 
   function calculateNoteRatio(midi1 = -1, midi2 = -1) {
     // Generate random MIDI values if necessary
@@ -173,6 +184,28 @@ io.on('connection', function (socket) {
     console.log(`${note1} and ${note2} is ${ratio}`);
   }
 
+  // Calculate the ratio between two MIDI notes
+  function getNoteRatio(midi1, midi2) {
+    let range = 12;
+    // Generate random MIDI values if necessary
+    if (midi1 === -1 && midi2 === -1) {
+      midi1 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
+      do {
+        midi2 = Math.floor(Math.random() * (96 - 36 + 1)) + 36;
+      } while (Math.abs(midi2 - midi1) > range);
+    } else if (Math.abs(midi2 - midi1) > range) {
+      console.log("The midi notes as out of set transform range.");
+      return;
+    }
+
+    // Convert MIDI values to note names
+    const note1 = Note.fromMidi(midi1);
+    const note2 = Note.fromMidi(midi2);
+
+    // Calculate the ratio between the two notes
+    return parseFloat((midi2 - midi1) / 12);
+  }
+
   // Find the chord with the given notes
   function findChord(midiNotes) {
     // convert to notes
@@ -190,7 +223,7 @@ io.on('connection', function (socket) {
 
   // Find the notes in a chord
   function getMidiChord(rootNote, chordType, inversion = 0) {
-console.log('chordType: ', chordType);
+    console.log('chordType: ', chordType);
     // Convert root note from MIDI to note name AND remove octave number
     const rootName = Note.fromMidi(rootNote).replace(/[0-9]/g, '');
     // Combine the root note and chord type to get the chord name
@@ -207,12 +240,12 @@ console.log('chordType: ', chordType);
     // this way the root note is always the first note
     // unless inversion is set
     chromaValues.forEach((item, i) => {
-    if (inversion == 0) {
-      if (item < chromaValues[0]) {
-        chromaValues[i] = item + 12;
+      if (inversion == 0) {
+        if (item < chromaValues[0]) {
+          chromaValues[i] = item + 12;
+        }
       }
-    }
-  });
+    });
     // add root note to chord
     const chordResult = chromaValues.map(item => (item - chromaValues[0]) + rootNote);
     console.log(chordResult);
@@ -314,6 +347,34 @@ console.log('chordType: ', chordType);
 
   })
 
+  // chord 1 capture 
+  socket.on('chord-capture-1', (data) => {
+    console.log("Play chord 1 notes to capture");
+    if (data.active == 1) {
+      isCapturingChord1 = true;
+      setTimeout(() => {
+        isCapturingChord1 = false;
+      }, 2000);
+    } else {
+      captureChords[0] = [];
+    }
+  })
+  // chord 2 capture 
+
+  socket.on('chord-capture-2', (data) => {
+    console.log("Play chord 2 notes to capture");
+    if (data.active == 1) {
+      isCapturingChord2 = true;
+      setTimeout(() => {
+        isCapturingChord2 = false;
+        processChords(captureChords);
+      }, 2000);
+    } else {
+      captureChords[1] = [];
+    }
+
+  })
+
   let isGeneratingNotes = false;
   let noteDuration = 500; // milliseconds
   let playingNotes = [];
@@ -378,21 +439,70 @@ console.log('chordType: ', chordType);
   // This function is called when a OSC message is received
   function onOSCMessage(message) {
     console.log("osc message: " + message.args)
-    let channel = message.args[0].value;
-    let midi = message.args[1].value;
+    let channel = parseInt(message.args[0]);
+    let midi = parseInt(message.args[1]);
     let address = message.address;
     let key = midi - 24;
-
+    console.log("midi: " + midi + "message.args[1]: " + message.args[1]);
     if ((address == "/keyOn" || address == "/keyOff") && isRecording) {
       // Push the message object with a timestamp to the events array
       events.push({ address: message.address, args: message.args, timestamp: Date.now() });
     } else if (address == '/keyOn' && isCapturingNotes) {
       captureNotes.push(midi);
+      console.log("captureNote: " + midi);
+    } else if ((address == '/keyOn' || address == '/keyOff') && isCapturingChord1) {
+      captureChords[0].push(midi);
+    } else if ((address == '/keyOn' || address == '/keyOff') && isCapturingChord2) {
+      captureChords[1].push(midi);
     } else if (address == '/transpose') {
       let transposed = transposeNotes(captureNotes, -2, currentKey);
       let event = { address: "/noteCapture", args: transposed };
       udpPort.send(event);
     }
+  }
+
+  // remove any duplicate notes and sort
+  function processChords(chords) {
+    let chord1 = chords[0].filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b); // Note: Added sorting function for numbers
+    let chord2 = chords[1].filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b); // Note: Added sorting function for numbers
+
+    console.log("chord1: " + chord1);
+    console.log("chord2: " + chord2);
+
+    for (let i = 0; i < captureChords.length - 1; i++) {
+      const currentArray = captureChords[i].filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b);
+      const nextArray = captureChords[i + 1].filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b);
+      console.log("touched for the very " + (i + 1) + " time");
+
+      if (currentArray.length > 0 && nextArray.length > 0 && currentArray.length === nextArray.length) {
+        console.log(`capture chords success!`);
+        console.log("currentArray length: " + currentArray.length);
+
+        // calculate the ratio between the two chords and store in array
+        for (let j = 0; j < currentArray.length; j++) {
+          console.log("getnoteRatio " + j);
+          ratioChords[0].push(getNoteRatio(currentArray[j], nextArray[j]));
+        }
+        console.log("currentArray: " + currentArray);
+        console.log("nextArray: " + nextArray);
+        // send play message to client
+        socket.emit('morphChord', { midiStartChord: currentArray, midiEndChord: nextArray, ratio: ratioChords[0] });
+        console.log("ratioChords: " + ratioChords[0]);
+      } else {
+        console.log(`the chords do not have the same number of notes!`);
+        return;
+      }
+    }
+
+    // let event = { address: "/chordCapture", args: [chord1, chord2] };
+    // udpPort.send(event);
+    // socket.emit('osc', event); // display on keyboard
+  }
+
+  function resetMorphChords() {
+    ratioChords = [[]];
+    captureChords = [[], []];
+    socket.emit('reset-morph-chords', 0);
   }
 
   function generateMidiNotesForKey(rootNote) {
@@ -478,7 +588,19 @@ console.log('chordType: ', chordType);
     return result;
   }
 
+  function stopAllNotes(channel = 0) {
+    for (let i = 36; i < 36+numPianoKeys; i++) {
+      let event = { address: "/keyOffPlay", args: [channel, i] };
+      udpPort.send(event); // send to SC
+      socket.emit('osc', event); // display on keyboard
+    }
 
+  for (let i = 0; i < 10; i++) {
+      //  reset bend to 8192
+      let event = { address: "/onBend", args: [i, 8192] };
+      udpPort.send(event); // send to SC
+    }
+  }
 
 });
 

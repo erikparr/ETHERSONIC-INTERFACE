@@ -52,6 +52,9 @@ body {
 .second-row {
   top: 50px;
 }
+.third-row {
+  top: 100px;
+}
 .chord-button {
   border-radius: 20px;
   border: 1px solid #fff;
