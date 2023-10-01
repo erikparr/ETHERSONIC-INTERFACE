@@ -49,6 +49,10 @@ body {
 
 }
 
+.hidden {
+  display:none;
+}
+
 .second-row {
   top: 50px;
 }
@@ -102,6 +106,11 @@ body {
 
 .button-row button:hover {
   opacity: 1;
+}
+
+.view-modes{
+top:100px;
+right:100px;
 }
 
 #notes-container {

@@ -1,4 +1,5 @@
 import Keyboard from './components/Keyboard.js';
+import VoxView from './components/VoxView.js';
 
 var width = 800;
 var height = 600;
@@ -138,10 +139,8 @@ window.onload = function () {
     function midiToNote(midiValue) {
         return notes[midiValue];
     }
-
     // Connect to the server using WebSockets
     var socket = io();
-
     // Create a Two.js drawing inside the "draw-shapes" div
     var elem = document.getElementById("draw-keyboard");
     // Create an instance of two.js
@@ -150,6 +149,13 @@ window.onload = function () {
         autostart: true
     }).appendTo(document.body);
 
+    //pixi.js setup
+    // Create a PixiJS application of type cavas with specify background color and make it resizes to the iframe window
+    let pixiApp = new PIXI.Application({ antialias: true, resizeTo: window });
+    let pixiGraphics = new PIXI.Graphics();
+    let pixiContainer = document.getElementById("pixi-container");
+    pixiContainer.appendChild(pixiApp.view);
+    // note function
     function getNotesInChord(selectedKey, selectedChord) {
         console.log("selectedChord: " + selectedChord.name);
         const rootNote = selectedKey + selectedChord.intervals[0];
@@ -161,7 +167,7 @@ window.onload = function () {
 
     // init keybaord
     let keyboard = new Keyboard(two, displayMidiValues, displayNotes, displayKeyMidi, displayKey, currentKey, socket, getNotesInChord);
-
+    let voxView = new VoxView(two, pixiApp, pixiGraphics);
     // Listen for incoming OSC messages
     socket.on('osc', function (message) {
         // console.log('Received OSC message:', message);
@@ -223,7 +229,7 @@ window.onload = function () {
         let intervalId;
         numMorphs = startChord.length; // keep track of how many morphs to be completed
         // make sure numChannels corresponds to the number of notes in the chord
-         numChannels = startChord.length;
+        numChannels = startChord.length;
         numChan = 0;
         // Extract the main logic into a separate function
         function morphingLogic(startLoop = false) {
@@ -277,6 +283,13 @@ window.onload = function () {
     socket.on('foundChord', function (message) {
         let element = document.getElementById('chord-name');
         element.innerText = message.chordName;
+    });
+
+    //listen for foundChord messagaes
+    socket.on('requestSpeech', function (message) {
+        console.log("requestSpeech");
+        const durations = voxView.randomPhoneme();
+        socket.emit('speechData', { duration: durations.phoneDuration, startTime: durations.totalDuration });
     });
 
     // Listen for Enter key press
@@ -509,6 +522,7 @@ window.onload = function () {
 
 
     // Add event listeners to the buttons
+
     const keyDisplayBt = document.getElementById('key-display-button');
     keyDisplayBt.addEventListener('click', () => {
         // Code to display the current key
@@ -526,7 +540,7 @@ window.onload = function () {
     const genNotesBt = document.getElementById('generate-notes-button');
     genNotesBt.addEventListener('click', () => {
         // Code to display the current key
-        genNotesBt.classList.toggle('button-pressed');
+        genNotesBt.classList.add('button-pressed');
         genBtPressed = !genBtPressed;
         socket.emit('generateRandom', { key: genBtPressed });
 

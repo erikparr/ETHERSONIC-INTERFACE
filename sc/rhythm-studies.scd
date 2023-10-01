@@ -121,18 +121,48 @@ t = Routine({
 )
 t.value([40,58], 88, 1/4);
 (
-var bpm = 88;
-var notes = [ 48, 50, 51, 53, 55, 53, 51, 50 ];
+var bpm = 108;
+var notes = [
+55,
+55,
+55,
+60,
+60,
+60,
+55,
+55,
+55,
+60,
+60,
+60,
+55,
+55,
+60,
+60,
+53,
+53,
+53,
+58,
+58,
+58,
+53,
+53,
+53,
+58,
+58,
+58,
+53,
+53,
+58,
+58];
 var dur = 1/4;
 
 
 
 // Transpose pattern for the melody
 ~pattern = Pseq([
-    Pseq(notes, 6),
-	Pseq(~captureNotes, 6),
-    Pseq(~captureNotes, 6),
-    Pseq(~captureNotes, 6),
+	Pseq(notes, 4),
+	Pseq(~captureNotes, 4),
 ], inf);
 
 // Pbind object to play the melody

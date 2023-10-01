@@ -3,6 +3,7 @@ const socketIo = require('socket.io');
 const osc = require('osc');
 const express = require('express');
 const app = express();
+const cors = require('cors');
 const tonal = require("tonal");
 const { Note, Scale, Transpose, Chord } = require("tonal");
 const Distance = require("tonal-distance");
@@ -21,39 +22,47 @@ let captureNotes = []; // manually add midi notes to a list
 let captureChords = [[], []]; // add midi notes to a chord list
 let ratioChords = [[]];
 let currentKey = 'C';
-// This will create an instance of the express app, use the express.static middleware to serve the public directory as a static file directory, and create the HTTP server using the express app
+
+app.use(cors());
+// This should come after initializing socket.io
 app.use(express.static('public'));
 const server = http.createServer(app);
+
+// Create a WebSocket server
+const io = socketIo(server, {
+  cors: {
+    origin: "http://localhost:8080",
+    methods: ["GET", "POST"]
+  }
+
+});
 
 // Start the server
 server.listen(8080, function () {
   console.log('Server running on port 8080');
 });
 
-// Create a WebSocket server
-const io = socketIo(server);
 
 // Listen for incoming WebSockets connections
 io.on('connection', function (socket) {
-  console.log('Client connected:', socket.id);
 
-  //  midiGenNotes = generateMidiNotesForKey("C");
-  // Listen for incoming OSC messages
+  console.log('Client connected:', socket.id);
   const udpPort = new osc.UDPPort({
     localAddress: '0.0.0.0',
     localPort: 57121,
     remoteAddress: "localhost",
-    remotePort: 57120
-    // metadata: true
-  });
-  udpPort.on('message', function (message) {
-    console.log('Received OSC message:', message);
-    socket.emit('osc', message); // transmit message to frontend via websockets
-    onOSCMessage(message);
+    remotePort: 57120 // adjust as necessary
+});
 
+
+udpPort.on('message', function (message) {
+  console.log('Received OSC message:', message);
+  socket.emit('osc', message); // transmit message to frontend via websockets
+  onOSCMessage(message);
   });
 
   udpPort.open();
+
 
   // Handle disconnections
   socket.on('disconnect', function () {
@@ -79,6 +88,13 @@ io.on('connection', function (socket) {
     socket.emit('foundChord', { chordName: findChord(message.midiNotes) });
   });
 
+  // listen for speech durations and send to Supercollider
+  socket.on('speechData', function (message) {
+    console.log("message.duration: " + message.duration);
+    console.log("message.startTime: " + message.startTime);
+    let event = { address: "/onPlaySpeech", args: [message.duration, message.startTime] };
+    udpPort.send(event); // send to SC
+  });
 
   socket.on('noteOn', function (message) {
     console.log('noteOn:', message.note + " " + message.channel);
@@ -443,7 +459,6 @@ io.on('connection', function (socket) {
     let midi = parseInt(message.args[1]);
     let address = message.address;
     let key = midi - 24;
-    console.log("midi: " + midi + "message.args[1]: " + message.args[1]);
     if ((address == "/keyOn" || address == "/keyOff") && isRecording) {
       // Push the message object with a timestamp to the events array
       events.push({ address: message.address, args: message.args, timestamp: Date.now() });
@@ -458,6 +473,9 @@ io.on('connection', function (socket) {
       let transposed = transposeNotes(captureNotes, -2, currentKey);
       let event = { address: "/noteCapture", args: transposed };
       udpPort.send(event);
+    } else if ('/requestSpeech') {
+      console.log("requestSpeech");
+      socket.emit('requestSpeech', { value: 1 });
     }
   }
 
@@ -589,18 +607,30 @@ io.on('connection', function (socket) {
   }
 
   function stopAllNotes(channel = 0) {
-    for (let i = 36; i < 36+numPianoKeys; i++) {
+    for (let i = 36; i < 36 + numPianoKeys; i++) {
       let event = { address: "/keyOffPlay", args: [channel, i] };
       udpPort.send(event); // send to SC
       socket.emit('osc', event); // display on keyboard
     }
 
-  for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 10; i++) {
       //  reset bend to 8192
       let event = { address: "/onBend", args: [i, 8192] };
       udpPort.send(event); // send to SC
     }
   }
+
+  // To gracefully shutdown the udpPort when your server shuts down
+  process.on('exit', function () {
+    if (udpPort.state === "open") {
+      udpPort.close();
+    }
+  });
+
+  process.on('SIGINT', function () {
+    process.exit();
+  });
+
 
 });
 

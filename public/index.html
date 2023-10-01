@@ -10,41 +10,53 @@
   <link rel="stylesheet" type="text/css" href="style.css">
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/two.js/0.7.4/two.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js" integrity="sha512-jduERlz7En1IUZR54bqzpNI64AbffZWR//KJgF71SJ8D8/liKFZ+s1RxmUmB+bhCnIfzebdZsULwOrbVB5f3nQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js"
+    integrity="sha512-Ch/O6kL8BqUwAfCF7Ie5SX1Hin+BJgYH4pNjRqXdTEqMsis1TUYg+j6nnI9uduPjGaj7DN4UKCZgpvoExt6dkw=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@pixi/graphics-extras@7.x/dist/graphics-extras.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"
+    integrity="sha512-jduERlz7En1IUZR54bqzpNI64AbffZWR//KJgF71SJ8D8/liKFZ+s1RxmUmB+bhCnIfzebdZsULwOrbVB5f3nQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="https://cdn.jsdelivr.net/npm/web-midi-player@latest/index.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/20.0.0/tween.umd.js"></script>
   <!-- <script src="keyboard.js"></script> -->
   <script type="module" src="client.js"></script>
-  
+
 </head>
 
 <body>
-  <div id="container" style="height:100%;width:100%;position:relative;">
-    <div id="draw-keyboard" style="height:100%;width:100%;"></div>
+  <div id="pixi-container" style="height:100%;width:100%;position:relative;">
+    </div>
+    <div id="keyboard-container" style="height:100%;width:100%;position:relative;">
+      <div id="draw-keyboard" style="height:100%;width:100%;"></div>
   </div>
-  <div class="button-row">
-    <button id="key-display-button">Key Display</button>
-    <button id="generate-notes-button">Generate Notes</button>
-    <button id="chords-button">Chords</button>
-    <button id="whatChord-button" style="padding: 5px 10px;">🔍 </button>
+  <div class="main-ui">
+    <div class="button-row">
+      <button id="key-display-button">Key Display</button>
+      <button id="generate-notes-button">Generate Notes</button>
+      <button id="chords-button">Chords</button>
+      <button id="whatChord-button" style="padding: 5px 10px;">🔍 </button>
+    </div>
+    <div class="display-chord-name">
+      <div id="chord-name"></div>
+    </div>
+    <div class="button-row second-row">
+      <button id="glissando-button">Glissando</button>
+    </div>
+    <div class="button-row third-row">
+      <button id="chord-capture1">Chord 1</button>
+      <button id="chord-capture2">Chord 2</button>
+      <button id="chord-capture-play">▶️</button>
+      <button id="chord-capture-reset">↺</button>
+    </div>
+    <div id="notes-container"></div>
+    <div id="chord-container"></div>
+    <div id="curve-container"></div>
   </div>
-  <div class="display-chord-name">
-    <div id="chord-name"></div>
-  </div>
-  <div class="button-row second-row">
-    <button id="glissando-button">Glissando</button>
-  </div>
-  <div class="button-row third-row">
-    <button id="chord-capture1">Chord 1</button>
-    <button id="chord-capture2">Chord 2</button>
-    <button id="chord-capture-play">▶️</button>
-    <button id="chord-capture-reset">↺</button>
-  </div>
-  <div id="notes-container"></div>
-  <div id="chord-container"></div>
-  <div id="curve-container"></div>
 
-
+  <div class="button-row view-modes">
+    <button id="vox-view-button">Vox Mode</button>
+  </div>
 
 </body>
 
