@@ -52,13 +52,13 @@ io.on('connection', function (socket) {
     localPort: 57121,
     remoteAddress: "localhost",
     remotePort: 57120 // adjust as necessary
-});
+  });
 
 
-udpPort.on('message', function (message) {
-  console.log('Received OSC message:', message);
-  socket.emit('osc', message); // transmit message to frontend via websockets
-  onOSCMessage(message);
+  udpPort.on('message', function (message) {
+    console.log('Received OSC message:', message);
+    socket.emit('osc', message); // transmit message to frontend via websockets
+    onOSCMessage(message);
   });
 
   udpPort.open();
@@ -118,6 +118,12 @@ udpPort.on('message', function (message) {
     socket.emit('osc', event); // display on keyboard
 
   });
+  socket.on('glissOff', function (message) {
+    console.log('glissOff:', message.note + " " + message.channel);
+    let event = { address: "/keyOffPlay", args: [message.channel, message.note] };
+    udpPort.send(event); // send to SC
+  });
+
 
   // Handle update addMidiNotesToList
   socket.on('noteCapture', function (message) {
@@ -151,7 +157,6 @@ udpPort.on('message', function (message) {
     const ratio = getNoteRatio(midi1, midi2);
 
     // Print the notes and the ratio to the console
-    console.log(`${note1} and ${note2} is ${ratio}`);
     socket.emit('noteRatio', { midiStart: midi1, midiEnd: midi2, ratio: ratio });
   })
 
@@ -362,6 +367,11 @@ udpPort.on('message', function (message) {
     udpPort.send(event);
 
   })
+  socket.on('glissandoNote', (data) => {
+    let event = { address: "/glissandoNote", args: data.active };
+    udpPort.send(event);
+
+  })
 
   // chord 1 capture 
   socket.on('chord-capture-1', (data) => {
@@ -455,10 +465,12 @@ udpPort.on('message', function (message) {
   // This function is called when a OSC message is received
   function onOSCMessage(message) {
     console.log("osc message: " + message.args)
-    let channel = parseInt(message.args[0]);
-    let midi = parseInt(message.args[1]);
     let address = message.address;
-    let key = midi - 24;
+    if (address == '/keyOn' || address == '/keyOff') {
+      let channel = parseInt(message.args[0]);
+      let midi = parseInt(message.args[1]);
+      let key = midi - 24;
+    }
     if ((address == "/keyOn" || address == "/keyOff") && isRecording) {
       // Push the message object with a timestamp to the events array
       events.push({ address: message.address, args: message.args, timestamp: Date.now() });
@@ -473,9 +485,25 @@ udpPort.on('message', function (message) {
       let transposed = transposeNotes(captureNotes, -2, currentKey);
       let event = { address: "/noteCapture", args: transposed };
       udpPort.send(event);
-    } else if ('/requestSpeech') {
+    } else if (address == '/requestSpeech') {
       console.log("requestSpeech");
       socket.emit('requestSpeech', { value: 1 });
+    } else if (address == '/knob1') {
+      let knobValue = parseFloat(message.args[0]);
+      console.log("1: ", knobValue);
+      socket.emit('knob1', { value: knobValue });
+    }else if (address == '/knob2') {
+      let knobValue = parseFloat(message.args[0]);
+      console.log("2: ", knobValue);
+      socket.emit('knob2', { value: knobValue });
+    }else if (address == '/knob3') {
+      let knobValue = parseFloat(message.args[0]);
+      console.log("3: ", knobValue);
+      socket.emit('knob3', { value: knobValue });
+    }else if (address == '/knob4') {
+      let knobValue = parseFloat(message.args[0]);
+      console.log("4: ", knobValue);
+      socket.emit('knob4', { value: knobValue });
     }
   }
 

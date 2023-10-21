@@ -1,6 +1,12 @@
 body {
   background-color: #211c28;
 }
+.no-select {
+  user-select: none; /* Standard syntax */
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* Internet Explorer/Edge */
+}
 
 .button-row {
   z-index: 999;
@@ -59,6 +65,9 @@ body {
 .third-row {
   top: 100px;
 }
+.fourth-row {
+  top: 200px;
+}
 .chord-button {
   border-radius: 20px;
   border: 1px solid #fff;
@@ -72,6 +81,8 @@ body {
   transition: opacity 0.2s ease-in-out;
 
 }
+
+
 .whatChord-button {
   border-radius: 20px;
   border: 1px solid #fff;
@@ -136,3 +147,49 @@ right:100px;
 .button-row button:active {
   opacity: 0.7;
 }
+
+.knob-container {
+  display: inline-block;
+  text-align: center;
+  margin: 20px;
+}
+
+.knob-value {
+  color:#fff;
+  font-size: 12px;
+  margin-top: 10px;
+  display: block;
+  background-color: transparent;
+  padding: 5px 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.knob-wrapper {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.knob-base {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #cccccc;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.knob-indicator {
+  width: 2px;
+  height: 50%; /* Half the knob's height */
+  background-color: #000000;
+  position: absolute;
+  bottom: 50%;
+  left: 49%; /* Center the indicator */
+  z-index: 2;
+  transform-origin: 50% 100%;
+  transform: rotate(0deg);
+}
+

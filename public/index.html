@@ -13,8 +13,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js"
     integrity="sha512-Ch/O6kL8BqUwAfCF7Ie5SX1Hin+BJgYH4pNjRqXdTEqMsis1TUYg+j6nnI9uduPjGaj7DN4UKCZgpvoExt6dkw=="
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@pixi/graphics-extras@7.x/dist/graphics-extras.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"
+  <script src="https://cdn.jsdelivr.net/npm/@pixi/graphics-extras@7.x/dist/graphics-extras.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"
     integrity="sha512-jduERlz7En1IUZR54bqzpNI64AbffZWR//KJgF71SJ8D8/liKFZ+s1RxmUmB+bhCnIfzebdZsULwOrbVB5f3nQ=="
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="https://cdn.jsdelivr.net/npm/web-midi-player@latest/index.js"></script>
@@ -26,9 +26,9 @@
 
 <body>
   <div id="pixi-container" style="height:100%;width:100%;position:relative;">
-    </div>
-    <div id="keyboard-container" style="height:100%;width:100%;position:relative;">
-      <div id="draw-keyboard" style="height:100%;width:100%;"></div>
+  </div>
+  <div id="keyboard-container" style="height:100%;width:100%;position:relative;">
+    <div id="draw-keyboard" style="height:100%;width:100%;"></div>
   </div>
   <div class="main-ui">
     <div class="button-row">
@@ -42,6 +42,7 @@
     </div>
     <div class="button-row second-row">
       <button id="glissando-button">Glissando</button>
+      <button id="glissando-note-button">GlissNote</button>
     </div>
     <div class="button-row third-row">
       <button id="chord-capture1">Chord 1</button>
@@ -50,6 +51,42 @@
       <button id="chord-capture-reset">↺</button>
     </div>
     <div id="notes-container"></div>
+<div class="button-row fourth-row">
+  <!--  Knob1 -->
+<div class="knob-wrapper" id="knob1-wrapper">
+  <div class="knob-base">
+      <div class="knob-indicator" id="knob1-indicator"></div>
+  </div>
+  <label id="knob1-label">0</label>
+</div>
+
+<!--  Knob2 -->
+<div class="knob-wrapper" id="knob2-wrapper">
+  <div class="knob-base">
+      <div class="knob-indicator" id="knob2-indicator"></div>
+  </div>
+  <label id="knob2-label">0</label>
+</div>
+
+<!--  Knob3 -->
+<div class="knob-wrapper" id="knob3-wrapper">
+  <div class="knob-base">
+      <div class="knob-indicator" id="knob3-indicator"></div>
+  </div>
+  <label id="knob3-label">0</label>
+</div>
+
+<!--  Knob4 -->
+<div class="knob-wrapper" id="knob4-wrapper">
+  <div class="knob-base">
+      <div class="knob-indicator" id="knob4-indicator"></div>
+  </div>
+  <label id="knob4-label">0</label>
+</div>
+
+</div>
+
+</div>
     <div id="chord-container"></div>
     <div id="curve-container"></div>
   </div>

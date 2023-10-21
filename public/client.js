@@ -35,7 +35,9 @@ let displayKeyMidi = [];
 let displayKey = false;
 let genBtPressed = false;
 let chordBtPressed = false;
+const bendZero = 8192;
 let glissandoMode = false;
+let glissandoNoteMode = false;
 let whatChord = false;
 let chordCap1 = false;
 let chordCap2 = false;
@@ -46,7 +48,10 @@ let numMorphs = 0;
 let numMorphsComplete = 0;
 let isEndLoop = false;
 let numNotesPlaying = 0;
-
+let noteChannel = 0;
+let holdStartDur = 500;
+let holdEndDur = 500;
+let bendDur = 500;
 const chordTypes = [
     { name: 'maj', intervals: [0, 4, 7] },
     { name: 'min', intervals: [0, 3, 7] },
@@ -81,9 +86,9 @@ const noteMap = { C: 36, "C#": 37, D: 38, "D#": 39, E: 40, F: 41, "F#": 42, G: 4
 //To ensure that a script is executed after the body has been loaded, you can use the window.onload event or the DOMContentLoaded event to wait for the HTML page to finish loading before executing the script.
 window.onload = function () {
 
-    function playAndBendNote(noteInput = -1, startRatio = 0.0, endRatio = 1.0, holdDuration1 = 2000, holdDuration2 = 2000, bendDuration = 5000, loopPlay = false) {
-        console.log("noteInput: " + noteInput)
-        let noteChannel = numChan;
+    function playAndBendNote(noteInput = -1, startRatio = 0.0, endRatio = 1.0, holdDuration1 = 2000, holdDuration2 = 2000, bendDuration = 5000, loopPlay = false, manualRelease = false) {
+        console.log("noteInput: " + noteInput + " startRatio: " + startRatio + " ndRatio: " + endRatio + " holdDuration1: " + holdDuration1 + " holdDuration2: " + holdDuration2 + " bendDuration: " + bendDuration + " loopPlay: " + loopPlay);
+         noteChannel = numChan;
         // 0 = -1 semitones, 8192 = no bend, 16383 = 1 semitones
         let startBend = remap(startRatio, -1.0, 1.0, 0, 16383);
         let endBend = remap(endRatio, -1.0, 1.0, 0, 16383);
@@ -93,6 +98,7 @@ window.onload = function () {
 
         // turn note on unless already playing in a loop
         if (!isMorphLooping && !isEndLoop) {
+            console.log("turn note on channel: " + noteChannel);
             socket.emit('noteOn', { note: note, channel: noteChannel });
         }
         if (!isMorphLooping && isEndLoop) {
@@ -101,7 +107,6 @@ window.onload = function () {
         setTimeout(() => {
             console.log("-- bend note --")
             // 0 = -1 semitones, 8192 = no bend, 16383 = 1 semitones
-            const bendZero = 8192;
             const bend = { x: startBend, y: 0 } // x = bend amt, y = amplitude
             const tween = new TWEEN.Tween(bend) // Create a new tween that modifies 'coords'.
                 .to({ x: endBend, y: endAmp }, bendDuration) // Move to target in x seconds.
@@ -111,6 +116,7 @@ window.onload = function () {
                 }).onComplete(() => {
                     console.log("### bend complete ###")
                     // wait to release note
+                    if(!manualRelease){
                     setTimeout(() => {
                         if (!isMorphLooping) { // turn note off unless already playing in a loop
                             socket.emit('noteOff', { note: note, channel: noteChannel });
@@ -119,7 +125,7 @@ window.onload = function () {
                         }
                         numMorphsComplete++; // keep track of how many morphs have been completed
                     }, holdDuration2);
-
+                }
                 })
                 .start() // Start the tween immediately.
             // Setup the animation loop.
@@ -188,7 +194,7 @@ window.onload = function () {
 
     //listen for noteRatio messages
     socket.on('noteRatio', function (message) {
-        playAndBendNote(parseInt(message.midiStart), 0.0, parseFloat(message.ratio))
+        playAndBendNote(parseInt(message.midiStart), 0.0, parseFloat(message.ratio), holdStartDur, holdEndDur, bendDur, false, true);
         console.log('midiStart: ', message.midiStart, 'midiEnd: ', message.midiEnd, 'ratio: ', message.ratio);
     });
 
@@ -291,6 +297,33 @@ window.onload = function () {
         const durations = voxView.randomPhoneme();
         socket.emit('speechData', { duration: durations.phoneDuration, startTime: durations.totalDuration });
     });
+    // listen for knob messages
+    socket.on('knob1', function (message){
+        // console.log("knob1: " + message.value);
+          // Map the received MIDI value to our knob's range
+            updateKnob('knob1', message.value); 
+            holdStartDur = remap(message.value, 0, 127, 0, 2000);
+    })
+
+    // listen for knob messages
+    socket.on('knob2', function (message){
+          // Map the received MIDI value to our knob's range
+            updateKnob('knob2', message.value); 
+            holdEndDur = remap(message.value, 0, 127, 0, 2000);
+    })
+
+    // listen for knob messages
+    socket.on('knob3', function (message){
+          // Map the received MIDI value to our knob's range
+            updateKnob('knob3', message.value); 
+            bendDur = remap(message.value, 0, 127, 0, 2000);
+    })
+
+    // listen for knob messages
+    socket.on('knob4', function (message){
+          // Map the received MIDI value to our knob's range
+            updateKnob('knob4', message.value); 
+    })
 
     // Listen for Enter key press
     document.addEventListener("keydown", function (event) {
@@ -405,14 +438,14 @@ window.onload = function () {
             }
 
         } else if (address == "/keyOff" || address == "/keyOffPlay") {
+            console.log("keyOff: " + key);
             releaseNote(key);
             pressedKeys = pressedKeys.filter(item => item !== midi);
-
-
         } else if (address == '/glissOn') {
             console.log("get note ratio...")
             //get note ratio for glissando mode
-            socket.emit('getNoteRatio', { midiStart: midi, midiEnd: 60 });
+            socket.emit('getNoteRatio', { midiStart: midi-12, midiEnd: midi });
+            releaseNote(key-12);
         }
         //release note
         function releaseNote(key) {
@@ -434,10 +467,6 @@ window.onload = function () {
             }
         }
     }
-
-
-
-
 
     function createChordButtons() {
         const chordContainer = document.getElementById('chord-container');
@@ -587,6 +616,17 @@ window.onload = function () {
         }
 
     });
+    const glissandoNoteBt = document.getElementById('glissando-note-button');
+    glissandoNoteBt.addEventListener('click', () => {
+        // Code to display the current key
+        glissandoNoteBt.classList.toggle('button-pressed');
+        glissandoNoteMode = !glissandoNoteMode;
+        if (glissandoNoteMode) {
+            socket.emit('glissandoNote', { active: 1 });
+        } else {
+            socket.emit('glissandoNote', { active: 0 });
+        }
+    });
 
     // MPE chord morphing
     // capture the notes in the chord
@@ -639,6 +679,78 @@ window.onload = function () {
         chordResetBt.classList.toggle('button-pressed');
         socket.emit('chord-capture-reset', { numChannels: numChan });
     });
+
+
+    const knobWrapper = document.querySelector('.knob-wrapper');
+    const knobIndicator = document.querySelector('.knob-indicator');
+    let isDragging = false;
+    let startAngle = 0;
+    let currentRotation = 0;
+    const knobValueText1 = document.querySelector('#knob1-label');
+    const knobValueText2 = document.querySelector('#knob2-label');
+    const knobValueText3 = document.querySelector('#knob3-label');
+    const knobValueText4 = document.querySelector('#knob4-label');
+
+    function updateKnob(knobId, messageValue) {
+        const knobIndicator = document.getElementById(`${knobId}-indicator`);
+        const knobValueLabel = document.getElementById(`${knobId}-label`);
+        
+        const mappedRotation = remap(messageValue, 0, 127, MIN_ANGLE, MAX_ANGLE);
+        
+        knobIndicator.style.transform = `rotate(${mappedRotation}deg)`;
+        
+        const parameterValue = Math.round(remap(mappedRotation, MIN_ANGLE, MAX_ANGLE, 0, 100));
+        knobValueLabel.textContent = `${parameterValue}`;
+    }
+    
+    socket.on
+    
+    function getAngle(centerX, centerY, mouseX, mouseY) {
+        return Math.atan2(centerY - mouseY, centerX - mouseX) * (180 / Math.PI);
+    }
+
+    knobWrapper.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        const knobRect = knobIndicator.getBoundingClientRect();
+        const knobCenterX = knobRect.left + (knobRect.width / 2);
+        const knobCenterY = knobRect.top + knobRect.height;
+        startAngle = getAngle(knobCenterX, knobCenterY, e.clientX, e.clientY) - currentRotation;
+        // Add the no-select class to body when dragging starts
+        document.body.classList.add('no-select');
+    });
+
+    const MIN_ANGLE = -135; // corresponds to 7 o'clock
+    const MAX_ANGLE = 160;   // corresponds to 4 o'clock
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+
+        const knobRect = knobIndicator.getBoundingClientRect();
+        const knobCenterX = knobRect.left + (knobRect.width / 2);
+        const knobCenterY = knobRect.top + knobRect.height;
+        const angle = getAngle(knobCenterX, knobCenterY, e.clientX, e.clientY) - startAngle;
+
+        // Constrain the rotation to the defined range
+        currentRotation = Math.max(MIN_ANGLE, Math.min(angle, MAX_ANGLE));
+        knobIndicator.style.transform = `rotate(${currentRotation}deg)`;
+
+        let parameterValue = Math.round(remap(currentRotation, MIN_ANGLE, MAX_ANGLE, 0, 100));
+        // knobValueText.textContent = `${parameterValue}`;
+    });
+
+
+    knobWrapper.addEventListener('mouseup', () => {
+        isDragging = false;
+        // Remove the no-select class from body when dragging stops
+        document.body.classList.remove('no-select');
+    });
+
+    // To ensure mouse up works even if user moves mouse out of knob
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        document.body.classList.remove('no-select');
+    });
+
 
 
 
